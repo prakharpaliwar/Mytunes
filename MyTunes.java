@@ -16,8 +16,8 @@ public class MyTunes {
         System.out.println("Hello World!");
         // Run the GUI in the Event Dispatch Thread for thread safety
         // Initialize the database and create tables if they do not exist
-        Database.createNewDatabase();
-        Database.createTables();
+        //Database.createNewDatabase();
+        //Database.createTables();
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
