@@ -15,9 +15,11 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Database {
-    private static final String URL = "jdbc:sqlite:mytunes.db";
+    private static final String URL = "jdbc:sqlite:test.db";
 
     public static Connection connect() {
         Connection conn = null;
@@ -134,11 +136,48 @@ public class Database {
         }
     }
     
+    public static void insertSongWithQuery(String query) {
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute(query);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+    
+    
+    public static List<Object[]> getAllSongs() {
+        List<Object[]> songs = new ArrayList<>();
+        String sql = "SELECT * FROM songs";
+
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                Object[] song = {
+                    rs.getInt("id"),
+                    rs.getString("title"),
+                    rs.getString("artist"),
+                    rs.getString("album"),
+                    rs.getInt("year"),
+                    rs.getString("genre"),
+                    rs.getString("comment")
+                };
+                songs.add(song);
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return songs;
+    }
+    
     
      
 
     public static void main(String[] args) {
-        createNewDatabase();
-        createTables();
+        //createNewDatabase();
+        //createTables();
+       
     }
 }
