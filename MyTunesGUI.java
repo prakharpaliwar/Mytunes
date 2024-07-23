@@ -3,16 +3,25 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/GUIForms/JFrame.java to edit this template
  */
 package com.mycompany.mytunes;
+import org.jaudiotagger.audio.AudioFile;
+import org.jaudiotagger.audio.AudioFileIO;
+import org.jaudiotagger.tag.FieldKey;
+import org.jaudiotagger.tag.Tag;
+
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.dnd.*;
+import java.io.File;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
+import java.sql.PreparedStatement;
 /**
  *
  * @author Robinhood
@@ -37,11 +46,14 @@ public class MyTunesGUI extends javax.swing.JFrame {
         setLocationRelativeTo(null);
 
         // Set up the tabledexr
-        String[] columns = {"ID","Title", "Artist", "Album", "Year", "Genre", "Comment"};
+        String[] columns = {"Title", "Artist", "Album", "Year", "Genre", "Comment"};
         tableModel = new DefaultTableModel(columns, 0);
         songTable = new JTable(tableModel);
         JScrollPane scrollPane = new JScrollPane(songTable);
         add(scrollPane, BorderLayout.CENTER);
+        
+        // Enable drag and drop on the table
+        new DropTarget(songTable, new SongDropTargetListener());
 
         // Set up the buttons
         JPanel buttonPanel = new JPanel();
@@ -118,7 +130,7 @@ public class MyTunesGUI extends javax.swing.JFrame {
         
     }
 });
-    deleteMenuItem.addActionListener(new ActionListener() {
+    /*deleteMenuItem.addActionListener(new ActionListener() {
     @Override
     public void actionPerformed(ActionEvent e) {
         int selectedRow = songTable.getSelectedRow();
@@ -130,7 +142,22 @@ public class MyTunesGUI extends javax.swing.JFrame {
             JOptionPane.showMessageDialog(null, "Please select a song to delete.");
         }
     }
-});
+});*/
+    deleteMenuItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int selectedRow = songTable.getSelectedRow();
+                if (selectedRow != -1) {
+                    String title = (String) tableModel.getValueAt(selectedRow, 0);
+                    String artist = (String) tableModel.getValueAt(selectedRow, 1);
+                    String album = (String) tableModel.getValueAt(selectedRow, 2);
+                    Database.deleteSong(title, artist, album);
+                    tableModel.removeRow(selectedRow);
+                } else {
+                    JOptionPane.showMessageDialog(null, "Please select a song to delete.");
+                }
+            }
+        });
     
 
 
@@ -174,6 +201,55 @@ public class MyTunesGUI extends javax.swing.JFrame {
             System.out.println(e.getMessage());
         }**/
         
+    }
+    private class SongDropTargetListener extends DropTargetAdapter {
+        @Override
+        public void drop(DropTargetDropEvent dtde) {
+            try {
+                dtde.acceptDrop(DnDConstants.ACTION_COPY);
+                List<File> droppedFiles = (List<File>) dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+                for (File file : droppedFiles) {
+                    if (file.getName().toLowerCase().endsWith(".mp3")) {
+                        // Read ID3 tags
+                        AudioFile audioFile = AudioFileIO.read(file);
+                        Tag tag = audioFile.getTag();
+
+                        // Extract ID3 tag information
+                        String title = tag.getFirst(FieldKey.TITLE);
+                        String artist = tag.getFirst(FieldKey.ARTIST);
+                        String album = tag.getFirst(FieldKey.ALBUM);
+                        String year = tag.getFirst(FieldKey.YEAR);
+                        String genre = tag.getFirst(FieldKey.GENRE);
+                        String comment = tag.getFirst(FieldKey.COMMENT);
+
+                        // Insert metadata into the database
+                        insertSongDragnDrop(title, artist, album, year, genre, comment);
+
+                        // Update table model to reflect new data
+                        populateTableFromDatabase();
+                    }
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+    }
+    
+     public static void insertSongDragnDrop(String title, String artist, String album, String year, String genre, String comment) {
+        String sql = "INSERT INTO songs (title, artist, album, year, genre, comment) VALUES (?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = Database.connect();
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, title);
+            pstmt.setString(2, artist);
+            pstmt.setString(3, album);
+            pstmt.setInt(4, year != null ? Integer.parseInt(year) : 0);
+            pstmt.setString(5, genre);
+            pstmt.setString(6, comment);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
     }
 
     private int getLastInsertedId() {
