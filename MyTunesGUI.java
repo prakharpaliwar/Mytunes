@@ -22,6 +22,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.sql.PreparedStatement;
+import javax.swing.event.TableModelEvent;
+import javax.swing.event.TableModelListener;
 /**
  *
  * @author Robinhood
@@ -47,7 +49,14 @@ public class MyTunesGUI extends javax.swing.JFrame {
 
         // Set up the tabledexr
         String[] columns = {"Title", "Artist", "Album", "Year", "Genre", "Comment"};
-        tableModel = new DefaultTableModel(columns, 0);
+        //tableModel = new DefaultTableModel(columns, 0);
+        tableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                // Make all cells editable except for the first four columns (Title, Artist, Album, Year)
+                return column == 5; // "Comment" column is editable
+            }
+        };
         songTable = new JTable(tableModel);
         JScrollPane scrollPane = new JScrollPane(songTable);
         add(scrollPane, BorderLayout.CENTER);
@@ -109,6 +118,39 @@ public class MyTunesGUI extends javax.swing.JFrame {
             }
         });
         
+        
+        
+    popupAdd.addActionListener(new ActionListener() {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        String title = JOptionPane.showInputDialog("Enter song title:");
+        String artist = JOptionPane.showInputDialog("Enter artist name:");
+        String album = JOptionPane.showInputDialog("Enter album name:");
+        int year = Integer.parseInt(JOptionPane.showInputDialog("Enter year:"));
+        String genre = JOptionPane.showInputDialog("Enter genre:");
+        String comment = JOptionPane.showInputDialog("Enter comment:");
+
+        Database.insertSong(title, artist, album, year, genre, comment);
+        populateTableFromDatabase();
+    }
+});
+    popupDelete.addActionListener(new ActionListener() {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        int selectedRow = songTable.getSelectedRow();
+        if (selectedRow != -1) {
+            String title = (String) tableModel.getValueAt(selectedRow, 0);
+            String artist = (String) tableModel.getValueAt(selectedRow, 1);
+            String album = (String) tableModel.getValueAt(selectedRow, 2);
+            Database.deleteSong(title, artist, album);
+            tableModel.removeRow(selectedRow);
+        } else {
+            JOptionPane.showMessageDialog(null, "Please select a song to delete.");
+        }
+    }
+});
+
+    
     addMenuItem.addActionListener(new ActionListener() {
     @Override
     public void actionPerformed(ActionEvent e) {
@@ -158,7 +200,23 @@ public class MyTunesGUI extends javax.swing.JFrame {
                 }
             }
         });
-    
+     // Add a TableModelListener to detect changes in the table (for Comment updates)
+        tableModel.addTableModelListener(new TableModelListener() {
+            @Override
+            public void tableChanged(TableModelEvent e) {
+                if (e.getType() == TableModelEvent.UPDATE) {
+                    int row = e.getFirstRow();
+                    int column = e.getColumn();
+                    if (column == tableModel.findColumn("Comment")) {
+                        String updatedComment = (String) tableModel.getValueAt(row, column);
+                        String title = (String) tableModel.getValueAt(row, tableModel.findColumn("Title"));
+                        String artist = (String) tableModel.getValueAt(row, tableModel.findColumn("Artist"));
+                        String album = (String) tableModel.getValueAt(row, tableModel.findColumn("Album"));
+                        Database.updateSongComment(title, artist, album, updatedComment);
+                    }
+                }
+            }
+        });
 
 
 
