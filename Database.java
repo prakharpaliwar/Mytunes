@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Database {
-    private static final String URL = "jdbc:sqlite:testy.db";
+    private static final String URL = "jdbc:sqlite:testm.db";
 
     public static Connection connect() {
         Connection conn = null;
@@ -110,30 +110,6 @@ public class Database {
             System.out.println(e.getMessage());
         }
     } 
-    /*public static void updateSong(int id, String title, String artist, String album, int year, String genre, String comment) {
-        String sql = "UPDATE songs SET title = ? , "
-                + "artist = ? , "
-                + "album = ? , "
-                + "year = ? , "
-                + "genre = ? , "
-                + "comment = ? "
-                + "WHERE id = ?";
-
-        try (Connection conn = connect();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, title);
-            pstmt.setString(2, artist);
-            pstmt.setString(3, album);
-            pstmt.setInt(4, year);
-            pstmt.setString(5, genre);
-            pstmt.setString(6, comment);
-            pstmt.setInt(7, id);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            System.out.println(e.getMessage());
-        }
-    }*/
     public static void updateSongComment(String title, String artist, String album, String updatedComment) {
     String sql = "UPDATE songs SET comment = ? WHERE title = ? AND artist = ? AND album = ?";
     
@@ -244,6 +220,60 @@ public class Database {
         return songs;
     }
     
+     public static List<String> getAllPlaylists() {
+        List<String> playlists = new ArrayList<>();
+        String sql = "SELECT name FROM playlists";
+
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                playlists.add(rs.getString("name"));
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return playlists;
+    }
+    public static void addSongToPlaylist(String title, String artist, String album, String playlistName) {
+        String getSongIdSql = "SELECT id FROM songs WHERE title = ? AND artist = ? AND album = ?";
+        String getPlaylistIdSql = "SELECT id FROM playlists WHERE name = ?";
+        String insertPlaylistSongSql = "INSERT INTO playlist_songs(playlist_id, song_id) VALUES(?, ?)";
+
+        try (Connection conn = connect();
+             PreparedStatement getSongIdStmt = conn.prepareStatement(getSongIdSql);
+             PreparedStatement getPlaylistIdStmt = conn.prepareStatement(getPlaylistIdSql);
+             PreparedStatement insertPlaylistSongStmt = conn.prepareStatement(insertPlaylistSongSql)) {
+
+            // Get song ID
+            getSongIdStmt.setString(1, title);
+            getSongIdStmt.setString(2, artist);
+            getSongIdStmt.setString(3, album);
+            ResultSet songIdRs = getSongIdStmt.executeQuery();
+            int songId = -1;
+            if (songIdRs.next()) {
+                songId = songIdRs.getInt("id");
+            }
+
+            // Get playlist ID
+            getPlaylistIdStmt.setString(1, playlistName);
+            ResultSet playlistIdRs = getPlaylistIdStmt.executeQuery();
+            int playlistId = -1;
+            if (playlistIdRs.next()) {
+                playlistId = playlistIdRs.getInt("id");
+            }
+
+            // Insert into playlist_songs table
+            if (songId != -1 && playlistId != -1) {
+                insertPlaylistSongStmt.setInt(1, playlistId);
+                insertPlaylistSongStmt.setInt(2, songId);
+                insertPlaylistSongStmt.executeUpdate();
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+    }
     
      
 
