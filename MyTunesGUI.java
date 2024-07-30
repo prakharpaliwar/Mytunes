@@ -1,7 +1,4 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/GUIForms/JFrame.java to edit this template
- */
+
 package com.mycompany.mytunes;
 import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
@@ -15,6 +12,8 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.dnd.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.io.File;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -24,6 +23,14 @@ import java.util.List;
 import java.sql.PreparedStatement;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
+import javax.swing.event.TreeExpansionEvent;
+import javax.swing.event.TreeExpansionListener;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreeSelectionModel;
+import javax.swing.event.TreeSelectionEvent;
+import javax.swing.event.TreeSelectionListener;
+import javax.swing.tree.TreePath;
 /**
  *
  * @author Robinhood
@@ -35,9 +42,18 @@ public class MyTunesGUI extends javax.swing.JFrame {
     private JButton playButton, stopButton, pauseButton, unpauseButton, nextButton, previousButton;
     private JMenuBar menuBar;
     private JMenu fileMenu;
-    private JMenuItem openMenuItem, exitMenuItem, addMenuItem, deleteMenuItem;
+    private JMenuItem openMenuItem, exitMenuItem, addMenuItem, deleteMenuItem, createPlaylistMenuItem;
     private JPopupMenu popupMenu;
     private JMenuItem popupAdd, popupDelete;
+    private JPanel leftPanel;
+    private JTree libraryTree;
+    private JTree playlistTree;
+    private JTree tree;
+    private DefaultTreeModel treemodel;
+    private DefaultTreeModel treemodel1;
+    private DefaultMutableTreeNode playlistRootNode;
+     private DefaultTreeModel playlistTreeModel;
+     
     /**
      * Creates new form MyTunesGUI
      */
@@ -45,9 +61,85 @@ public class MyTunesGUI extends javax.swing.JFrame {
         setTitle("MyTunes");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(800, 600);
-        setLocationRelativeTo(null);
+        setLocationRelativeTo(null); 
+        
+        
+        setLayout(new BorderLayout());
 
-        // Set up the tabledexr
+        // Create and add the left panel
+        leftPanel = new JPanel();
+        leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
+        leftPanel.setPreferredSize(new Dimension(getWidth() / 8, getHeight()));
+        leftPanel.setBackground(Color.LIGHT_GRAY);
+        add(leftPanel, BorderLayout.WEST);
+
+        // Create the "Library" tree
+        DefaultMutableTreeNode libraryNode = new DefaultMutableTreeNode("Library") {
+            @Override
+            public boolean isLeaf() {
+                return true; // Make this node non-expandable and non-collapsible
+            }
+        };
+        libraryTree = new JTree(libraryNode);
+        libraryTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
+        libraryTree.setRootVisible(true);
+        libraryTree.addTreeSelectionListener(e -> {
+            if (e.getPath().getLastPathComponent() == libraryNode) {
+                populateTableFromDatabase();
+            }
+        });
+
+        JScrollPane libraryScrollPane = new JScrollPane(libraryTree);
+        libraryScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        //libraryScrollPane.setPreferredSize(new Dimension(getWidth() / 8, getHeight() / 2));
+        leftPanel.add(libraryScrollPane);
+
+        // Create the "Playlist" tree
+        playlistRootNode = new DefaultMutableTreeNode("Playlists") {
+            @Override
+            public boolean isLeaf() {
+                return false; // Allow this node to be expandable and collapsible
+            }
+        };
+        playlistTreeModel = new DefaultTreeModel(playlistRootNode);
+        playlistTree = new JTree(playlistTreeModel);
+        playlistTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
+        playlistTree.setRootVisible(true);
+        playlistTree.addTreeSelectionListener(new TreeSelectionListener() {
+            @Override
+            public void valueChanged(TreeSelectionEvent e) {
+                DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) playlistTree.getLastSelectedPathComponent();
+                if (selectedNode != null && selectedNode.isLeaf() && selectedNode != playlistRootNode) {
+                    // Handle playlist selection
+                    populateTableFromPlaylist(selectedNode.toString());
+                }
+            }
+        });
+        
+        JScrollPane playlistScrollPane = new JScrollPane(playlistTree);
+        playlistScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        //playlistScrollPane.setPreferredSize(new Dimension(getWidth()/8, getHeight()/2));
+        leftPanel.add(playlistScrollPane);
+        
+      leftPanel.addComponentListener(new ComponentAdapter() {
+        @Override
+        public void componentResized(ComponentEvent e) {
+            int height = leftPanel.getHeight();
+            int paneHeight = (height - 10) / 2; // Subtract total gap (10) from height
+            libraryScrollPane.setBounds(0, 0, leftPanel.getWidth(), paneHeight);
+            playlistScrollPane.setBounds(0, paneHeight + 5, leftPanel.getWidth(), paneHeight); // +5 for gap
+        }
+    });
+
+
+        
+        
+        
+        
+
+        
+
+        // Set up the table
         String[] columns = {"Title", "Artist", "Album", "Year", "Genre", "Comment"};
         //tableModel = new DefaultTableModel(columns, 0);
         tableModel = new DefaultTableModel(columns, 0) {
@@ -89,9 +181,11 @@ public class MyTunesGUI extends javax.swing.JFrame {
         exitMenuItem = new JMenuItem("Exit");
         addMenuItem = new JMenuItem("Add");
         deleteMenuItem = new JMenuItem("Delete");
+        createPlaylistMenuItem = new JMenuItem("Create Playlist");
 
         fileMenu.add(openMenuItem);
         fileMenu.addSeparator();
+        fileMenu.add(createPlaylistMenuItem);
         fileMenu.add(addMenuItem);
         fileMenu.add(deleteMenuItem);
         fileMenu.addSeparator();
@@ -111,6 +205,8 @@ public class MyTunesGUI extends javax.swing.JFrame {
         songTable.setComponentPopupMenu(popupMenu);
 
         // Add Action Listeners (example for Play button)
+        createPlaylistMenuItem.addActionListener(e -> createPlaylist());
+        
         playButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -172,19 +268,6 @@ public class MyTunesGUI extends javax.swing.JFrame {
         
     }
 });
-    /*deleteMenuItem.addActionListener(new ActionListener() {
-    @Override
-    public void actionPerformed(ActionEvent e) {
-        int selectedRow = songTable.getSelectedRow();
-        if (selectedRow != -1) {
-            int id = (int) tableModel.getValueAt(selectedRow, 0);
-            Database.deleteSong(id);
-            tableModel.removeRow(selectedRow);
-        } else {
-            JOptionPane.showMessageDialog(null, "Please select a song to delete.");
-        }
-    }
-});*/
     deleteMenuItem.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -234,30 +317,56 @@ public class MyTunesGUI extends javax.swing.JFrame {
         refreshTimer.start();
         setVisible(true);
     }
+    private void createPlaylist() {
+        String playlistName = JOptionPane.showInputDialog("Enter playlist name:");
+        if (playlistName != null && !playlistName.trim().isEmpty()) {
+            Database.createPlaylist(playlistName);
+            DefaultMutableTreeNode newPlaylistNode = new DefaultMutableTreeNode(playlistName);
+            playlistTreeModel.insertNodeInto(newPlaylistNode, playlistRootNode, playlistRootNode.getChildCount());
+            TreePath path = new TreePath(newPlaylistNode.getPath());
+            playlistTree.setSelectionPath(path);
+            populateTableFromPlaylist(playlistName);
+        }
+    }
     private void populateTableFromDatabase() {
         tableModel.setRowCount(0); // Clear existing data
         List<Object[]> songs = Database.getAllSongs();
         for (Object[] song : songs) {
             tableModel.addRow(song);
         }
-        /**try (Connection conn = Database.connect();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT * FROM songs")) {
+    }
+    
+    private void populateTableFromPlaylist(String playlistName) {
+        tableModel.setRowCount(0); // Clear existing data
+        List<Object[]> songs = Database.getSongsFromPlaylist(playlistName);
+        for (Object[] song : songs) {
+            tableModel.addRow(song);
+        }
+    }
 
-            while (rs.next()) {
-                tableModel.addRow(new Object[]{
-                    rs.getInt("id"),
-                    rs.getString("title"),
-                    rs.getString("artist"),
-                    rs.getString("album"),
-                    rs.getInt("year"),
-                    rs.getString("genre"),
-                    rs.getString("comment")
-                });
-            }
-        } catch (SQLException e) {
-            System.out.println(e.getMessage());
-        }**/
+    private void buildTree() {
+        System.out.println("Hi pali");
+      DefaultMutableTreeNode libraryRoot = new DefaultMutableTreeNode("Library");
+        DefaultMutableTreeNode playlistsRoot = new DefaultMutableTreeNode("Playlist");
+
+        // Create a child node under the "Playlists" root node
+        DefaultMutableTreeNode def = new DefaultMutableTreeNode("Default");
+        playlistsRoot.add(def);
+
+        // Create an invisible top-level root node
+        DefaultMutableTreeNode invisibleRoot = new DefaultMutableTreeNode("InvisibleRoot");
+        invisibleRoot.add(libraryRoot);
+        invisibleRoot.add(playlistsRoot);
+
+        // Create a tree model with the invisible root node and set it to the tree
+        treemodel = new DefaultTreeModel(invisibleRoot);
+        tree.setModel(treemodel);
+
+        // Hide the invisible root node so only "Library" and "Playlists" are visible
+        tree.setRootVisible(false);
+        
+        
+        
         
     }
     private class SongDropTargetListener extends DropTargetAdapter {
@@ -366,3 +475,6 @@ public class MyTunesGUI extends javax.swing.JFrame {
     // Variables declaration - do not modify                     
     // End of variables declaration                   
 }
+
+
+
