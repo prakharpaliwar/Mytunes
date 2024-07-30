@@ -1,416 +1,88 @@
-
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
 package com.mycompany.mytunes;
-import org.jaudiotagger.audio.AudioFile;
-import org.jaudiotagger.audio.AudioFileIO;
-import org.jaudiotagger.tag.FieldKey;
-import org.jaudiotagger.tag.Tag;
 
-import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import java.awt.*;
-import java.awt.datatransfer.DataFlavor;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.dnd.*;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.io.File;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.List;
-import java.sql.PreparedStatement;
-import javax.swing.event.TableModelEvent;
-import javax.swing.event.TableModelListener;
-import javax.swing.event.TreeExpansionEvent;
-import javax.swing.event.TreeExpansionListener;
-import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeModel;
-import javax.swing.tree.TreeSelectionModel;
-import javax.swing.event.TreeSelectionEvent;
-import javax.swing.event.TreeSelectionListener;
-import javax.swing.tree.TreePath;
 /**
  *
  * @author Robinhood
  */
-public class MyTunesGUI extends javax.swing.JFrame {
-    
-    private JTable songTable;
-    private DefaultTableModel tableModel;
-    private JButton playButton, stopButton, pauseButton, unpauseButton, nextButton, previousButton;
-    private JMenuBar menuBar;
-    private JMenu fileMenu;
-    private JMenuItem openMenuItem, exitMenuItem, addMenuItem, deleteMenuItem, createPlaylistMenuItem;
-    private JPopupMenu popupMenu;
-    private JMenuItem popupAdd, popupDelete;
-    private JPanel leftPanel;
-    private JTree libraryTree;
-    private JTree playlistTree;
-    private JTree tree;
-    private DefaultTreeModel treemodel;
-    private DefaultTreeModel treemodel1;
-    private DefaultMutableTreeNode playlistRootNode;
-     private DefaultTreeModel playlistTreeModel;
-     
-    /**
-     * Creates new form MyTunesGUI
-     */
-    public MyTunesGUI() {
-        setTitle("MyTunes");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(800, 600);
-        setLocationRelativeTo(null); 
-        
-        
-        setLayout(new BorderLayout());
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 
-        // Create and add the left panel
-        leftPanel = new JPanel();
-        leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
-        leftPanel.setPreferredSize(new Dimension(getWidth() / 8, getHeight()));
-        leftPanel.setBackground(Color.LIGHT_GRAY);
-        add(leftPanel, BorderLayout.WEST);
+public class Database {
+    private static final String URL = "jdbc:sqlite:testm.db";
 
-        // Create the "Library" tree
-        DefaultMutableTreeNode libraryNode = new DefaultMutableTreeNode("Library") {
-            @Override
-            public boolean isLeaf() {
-                return true; // Make this node non-expandable and non-collapsible
-            }
-        };
-        libraryTree = new JTree(libraryNode);
-        libraryTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
-        libraryTree.setRootVisible(true);
-        libraryTree.addTreeSelectionListener(e -> {
-            if (e.getPath().getLastPathComponent() == libraryNode) {
-                populateTableFromDatabase();
-            }
-        });
-
-        JScrollPane libraryScrollPane = new JScrollPane(libraryTree);
-        libraryScrollPane.setBorder(BorderFactory.createEmptyBorder());
-        //libraryScrollPane.setPreferredSize(new Dimension(getWidth() / 8, getHeight() / 2));
-        leftPanel.add(libraryScrollPane);
-
-        // Create the "Playlist" tree
-        playlistRootNode = new DefaultMutableTreeNode("Playlists") {
-            @Override
-            public boolean isLeaf() {
-                return false; // Allow this node to be expandable and collapsible
-            }
-        };
-        playlistTreeModel = new DefaultTreeModel(playlistRootNode);
-        playlistTree = new JTree(playlistTreeModel);
-        playlistTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
-        playlistTree.setRootVisible(true);
-        playlistTree.addTreeSelectionListener(new TreeSelectionListener() {
-            @Override
-            public void valueChanged(TreeSelectionEvent e) {
-                DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) playlistTree.getLastSelectedPathComponent();
-                if (selectedNode != null && selectedNode.isLeaf() && selectedNode != playlistRootNode) {
-                    // Handle playlist selection
-                    populateTableFromPlaylist(selectedNode.toString());
-                }
-            }
-        });
-        
-        JScrollPane playlistScrollPane = new JScrollPane(playlistTree);
-        playlistScrollPane.setBorder(BorderFactory.createEmptyBorder());
-        //playlistScrollPane.setPreferredSize(new Dimension(getWidth()/8, getHeight()/2));
-        leftPanel.add(playlistScrollPane);
-        
-      leftPanel.addComponentListener(new ComponentAdapter() {
-        @Override
-        public void componentResized(ComponentEvent e) {
-            int height = leftPanel.getHeight();
-            int paneHeight = (height - 10) / 2; // Subtract total gap (10) from height
-            libraryScrollPane.setBounds(0, 0, leftPanel.getWidth(), paneHeight);
-            playlistScrollPane.setBounds(0, paneHeight + 5, leftPanel.getWidth(), paneHeight); // +5 for gap
+    public static Connection connect() {
+        Connection conn = null;
+        try {
+            conn = DriverManager.getConnection(URL);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
         }
-    });
+        return conn;
+    }
 
-
-        
-        
-        
-        
-
-        
-
-        // Set up the table
-        String[] columns = {"Title", "Artist", "Album", "Year", "Genre", "Comment"};
-        //tableModel = new DefaultTableModel(columns, 0);
-        tableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                // Make all cells editable except for the first four columns (Title, Artist, Album, Year)
-                return column == 5; // "Comment" column is editable
+    public static void createNewDatabase() {
+        try (Connection conn = connect()) {
+            if (conn != null) {
+                DatabaseMetaData meta = conn.getMetaData();
+                System.out.println("The driver name is " + meta.getDriverName());
+                System.out.println("A new database has been created.");
             }
-        };
-        songTable = new JTable(tableModel);
-        JScrollPane scrollPane = new JScrollPane(songTable);
-        add(scrollPane, BorderLayout.CENTER);
-        
-        // Enable drag and drop on the table
-        new DropTarget(songTable, new SongDropTargetListener());
-
-        // Set up the buttons
-        JPanel buttonPanel = new JPanel();
-        playButton = new JButton("Play");
-        stopButton = new JButton("Stop");
-        pauseButton = new JButton("Pause");
-        unpauseButton = new JButton("Unpause");
-        nextButton = new JButton("Next");
-        previousButton = new JButton("Previous");
-
-        buttonPanel.add(playButton);
-        buttonPanel.add(stopButton);
-        buttonPanel.add(pauseButton);
-        buttonPanel.add(unpauseButton);
-        buttonPanel.add(nextButton);
-        buttonPanel.add(previousButton);
-
-        add(buttonPanel, BorderLayout.SOUTH);
-
-        // Set up the menu bar
-        menuBar = new JMenuBar();
-        fileMenu = new JMenu("File");
-        openMenuItem = new JMenuItem("Open");
-        exitMenuItem = new JMenuItem("Exit");
-        addMenuItem = new JMenuItem("Add");
-        deleteMenuItem = new JMenuItem("Delete");
-        createPlaylistMenuItem = new JMenuItem("Create Playlist");
-
-        fileMenu.add(openMenuItem);
-        fileMenu.addSeparator();
-        fileMenu.add(createPlaylistMenuItem);
-        fileMenu.add(addMenuItem);
-        fileMenu.add(deleteMenuItem);
-        fileMenu.addSeparator();
-        fileMenu.add(exitMenuItem);
-
-        menuBar.add(fileMenu);
-        setJMenuBar(menuBar);
-
-        // Set up the popup menu
-        popupMenu = new JPopupMenu();
-        popupAdd = new JMenuItem("Add");
-        popupDelete = new JMenuItem("Delete");
-
-        popupMenu.add(popupAdd);
-        popupMenu.add(popupDelete);
-
-        songTable.setComponentPopupMenu(popupMenu);
-
-        // Add Action Listeners (example for Play button)
-        createPlaylistMenuItem.addActionListener(e -> createPlaylist());
-        
-        playButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                // Code to play song
-            }
-        });
-        
-        
-        
-    popupAdd.addActionListener(new ActionListener() {
-    @Override
-    public void actionPerformed(ActionEvent e) {
-        String title = JOptionPane.showInputDialog("Enter song title:");
-        String artist = JOptionPane.showInputDialog("Enter artist name:");
-        String album = JOptionPane.showInputDialog("Enter album name:");
-        int year = Integer.parseInt(JOptionPane.showInputDialog("Enter year:"));
-        String genre = JOptionPane.showInputDialog("Enter genre:");
-        String comment = JOptionPane.showInputDialog("Enter comment:");
-
-        Database.insertSong(title, artist, album, year, genre, comment);
-        populateTableFromDatabase();
-    }
-});
-    popupDelete.addActionListener(new ActionListener() {
-    @Override
-    public void actionPerformed(ActionEvent e) {
-        int selectedRow = songTable.getSelectedRow();
-        if (selectedRow != -1) {
-            String title = (String) tableModel.getValueAt(selectedRow, 0);
-            String artist = (String) tableModel.getValueAt(selectedRow, 1);
-            String album = (String) tableModel.getValueAt(selectedRow, 2);
-            Database.deleteSong(title, artist, album);
-            tableModel.removeRow(selectedRow);
-        } else {
-            JOptionPane.showMessageDialog(null, "Please select a song to delete.");
-        }
-    }
-});
-
-    
-    addMenuItem.addActionListener(new ActionListener() {
-    @Override
-    public void actionPerformed(ActionEvent e) {
-        // Example: Collect song details from user input (e.g., using a dialog)
-        // Collect song details from user input
-                String title = JOptionPane.showInputDialog("Enter song title:");
-                String artist = JOptionPane.showInputDialog("Enter artist name:");
-                String album = JOptionPane.showInputDialog("Enter album name:");
-                int year = Integer.parseInt(JOptionPane.showInputDialog("Enter year:"));
-                String genre = JOptionPane.showInputDialog("Enter genre:");
-                String comment = JOptionPane.showInputDialog("Enter comment:");
-
-
-        Database.insertSong(title, artist, album, year, genre, comment);
-
-        // Update table model to reflect new data
-        //tableModel.addRow(new Object[]{title, artist, album, year, genre, comment});
-        populateTableFromDatabase();
-        
-    }
-});
-    deleteMenuItem.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                int selectedRow = songTable.getSelectedRow();
-                if (selectedRow != -1) {
-                    String title = (String) tableModel.getValueAt(selectedRow, 0);
-                    String artist = (String) tableModel.getValueAt(selectedRow, 1);
-                    String album = (String) tableModel.getValueAt(selectedRow, 2);
-                    Database.deleteSong(title, artist, album);
-                    tableModel.removeRow(selectedRow);
-                } else {
-                    JOptionPane.showMessageDialog(null, "Please select a song to delete.");
-                }
-            }
-        });
-     // Add a TableModelListener to detect changes in the table (for Comment updates)
-        tableModel.addTableModelListener(new TableModelListener() {
-            @Override
-            public void tableChanged(TableModelEvent e) {
-                if (e.getType() == TableModelEvent.UPDATE) {
-                    int row = e.getFirstRow();
-                    int column = e.getColumn();
-                    if (column == tableModel.findColumn("Comment")) {
-                        String updatedComment = (String) tableModel.getValueAt(row, column);
-                        String title = (String) tableModel.getValueAt(row, tableModel.findColumn("Title"));
-                        String artist = (String) tableModel.getValueAt(row, tableModel.findColumn("Artist"));
-                        String album = (String) tableModel.getValueAt(row, tableModel.findColumn("Album"));
-                        Database.updateSongComment(title, artist, album, updatedComment);
-                    }
-                }
-            }
-        });
-
-
-
-        // Similarly, add action listeners for other buttons and menu items
-        // Populate table with data from the database
-        populateTableFromDatabase();
-        
-        // Set up a timer to refresh the table every 5 seconds
-        Timer refreshTimer = new Timer(5000, new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                populateTableFromDatabase();
-            }
-        });
-        refreshTimer.start();
-        setVisible(true);
-    }
-    private void createPlaylist() {
-        String playlistName = JOptionPane.showInputDialog("Enter playlist name:");
-        if (playlistName != null && !playlistName.trim().isEmpty()) {
-            Database.createPlaylist(playlistName);
-            DefaultMutableTreeNode newPlaylistNode = new DefaultMutableTreeNode(playlistName);
-            playlistTreeModel.insertNodeInto(newPlaylistNode, playlistRootNode, playlistRootNode.getChildCount());
-            TreePath path = new TreePath(newPlaylistNode.getPath());
-            playlistTree.setSelectionPath(path);
-            populateTableFromPlaylist(playlistName);
-        }
-    }
-    private void populateTableFromDatabase() {
-        tableModel.setRowCount(0); // Clear existing data
-        List<Object[]> songs = Database.getAllSongs();
-        for (Object[] song : songs) {
-            tableModel.addRow(song);
-        }
-    }
-    
-    private void populateTableFromPlaylist(String playlistName) {
-        tableModel.setRowCount(0); // Clear existing data
-        List<Object[]> songs = Database.getSongsFromPlaylist(playlistName);
-        for (Object[] song : songs) {
-            tableModel.addRow(song);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
         }
     }
 
-    private void buildTree() {
-        System.out.println("Hi pali");
-      DefaultMutableTreeNode libraryRoot = new DefaultMutableTreeNode("Library");
-        DefaultMutableTreeNode playlistsRoot = new DefaultMutableTreeNode("Playlist");
-
-        // Create a child node under the "Playlists" root node
-        DefaultMutableTreeNode def = new DefaultMutableTreeNode("Default");
-        playlistsRoot.add(def);
-
-        // Create an invisible top-level root node
-        DefaultMutableTreeNode invisibleRoot = new DefaultMutableTreeNode("InvisibleRoot");
-        invisibleRoot.add(libraryRoot);
-        invisibleRoot.add(playlistsRoot);
-
-        // Create a tree model with the invisible root node and set it to the tree
-        treemodel = new DefaultTreeModel(invisibleRoot);
-        tree.setModel(treemodel);
-
-        // Hide the invisible root node so only "Library" and "Playlists" are visible
-        tree.setRootVisible(false);
+    public static void createTables() {
+        String sql = "CREATE TABLE IF NOT EXISTS songs (\n"
+                + " id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
+                + " title TEXT NOT NULL,\n"
+                + " artist TEXT NOT NULL,\n"
+                + " album TEXT NOT NULL,\n"
+                + " year INTEGER,\n"
+                + " genre TEXT,\n"
+                + " comment TEXT\n"
+                + ");";
         
-        
-        
-        
-    }
-    private class SongDropTargetListener extends DropTargetAdapter {
-        @Override
-        public void drop(DropTargetDropEvent dtde) {
-            try {
-                dtde.acceptDrop(DnDConstants.ACTION_COPY);
-                List<File> droppedFiles = (List<File>) dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
-                for (File file : droppedFiles) {
-                    if (file.getName().toLowerCase().endsWith(".mp3")) {
-                        // Read ID3 tags
-                        AudioFile audioFile = AudioFileIO.read(file);
-                        Tag tag = audioFile.getTag();
+        String sqlPlaylists = "CREATE TABLE IF NOT EXISTS playlists (\n"
+                + " id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
+                + " name TEXT NOT NULL\n"
+                + ");";
 
-                        // Extract ID3 tag information
-                        String title = tag.getFirst(FieldKey.TITLE);
-                        String artist = tag.getFirst(FieldKey.ARTIST);
-                        String album = tag.getFirst(FieldKey.ALBUM);
-                        String year = tag.getFirst(FieldKey.YEAR);
-                        String genre = tag.getFirst(FieldKey.GENRE);
-                        String comment = tag.getFirst(FieldKey.COMMENT);
+        String sqlPlaylistSongs = "CREATE TABLE IF NOT EXISTS playlist_songs (\n"
+                + " playlist_id INTEGER NOT NULL,\n"
+                + " song_id INTEGER NOT NULL,\n"
+                + " FOREIGN KEY (playlist_id) REFERENCES playlists(id),\n"
+                + " FOREIGN KEY (song_id) REFERENCES songs(id)\n"
+                + ");";
 
-                        // Insert metadata into the database
-                        insertSongDragnDrop(title, artist, album, year, genre, comment);
-
-                        // Update table model to reflect new data
-                        populateTableFromDatabase();
-                    }
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute(sql);
+            System.out.println("Tables have been created.");
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
         }
     }
-    
-     public static void insertSongDragnDrop(String title, String artist, String album, String year, String genre, String comment) {
-        String sql = "INSERT INTO songs (title, artist, album, year, genre, comment) VALUES (?, ?, ?, ?, ?, ?)";
+     public static void insertSong(String title, String artist, String album, int year, String genre, String comment) {
+        String sql = "INSERT INTO songs(title, artist, album, year, genre, comment) VALUES(?,?,?,?,?,?)";
 
-        try (Connection conn = Database.connect();
+        try (Connection conn = connect();
             PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, title);
             pstmt.setString(2, artist);
             pstmt.setString(3, album);
-            pstmt.setInt(4, year != null ? Integer.parseInt(year) : 0);
+            pstmt.setInt(4, year);
             pstmt.setString(5, genre);
             pstmt.setString(6, comment);
             pstmt.executeUpdate();
@@ -418,63 +90,196 @@ public class MyTunesGUI extends javax.swing.JFrame {
             System.out.println(e.getMessage());
         }
     }
+    public static void selectAllSongs() {
+        String sql = "SELECT id, title, artist, album, year, genre, comment FROM songs";
 
-    private int getLastInsertedId() {
-        int lastId = -1;
-        String sql = "SELECT last_insert_rowid() AS last_id";
-        try (Connection conn = Database.connect();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            if (rs.next()) {
-                lastId = rs.getInt("last_id");
+        try (Connection conn = connect();
+             Statement stmt  = conn.createStatement();
+             ResultSet rs    = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                System.out.println(rs.getInt("id") +  "\t" +
+                                   rs.getString("title") + "\t" +
+                                   rs.getString("artist") + "\t" +
+                                   rs.getString("album") + "\t" +
+                                   rs.getInt("year") + "\t" +
+                                   rs.getString("genre") + "\t" +
+                                   rs.getString("comment"));
             }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
-        return lastId;
-    }
-
-    /**
-     * This method is called from within the constructor to initialize the form.
-     * WARNING: Do NOT modify this code. The content of this method is always
-     * regenerated by the Form Editor.
-     */
-    // <editor-fold defaultstate="collapsed" desc="Generated Code">                          
-    private void initComponents() {
-
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
-
-        javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
-        getContentPane().setLayout(layout);
-        layout.setHorizontalGroup(
-            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 400, Short.MAX_VALUE)
-        );
-        layout.setVerticalGroup(
-            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 300, Short.MAX_VALUE)
-        );
-
-        pack();
-    }// </editor-fold>                        
-
-    /**
-     * @param args the command line arguments
-     */
-     public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                new MyTunesGUI();
-            }
-        });
-    }
-   
+    } 
+    public static void updateSongComment(String title, String artist, String album, String updatedComment) {
+    String sql = "UPDATE songs SET comment = ? WHERE title = ? AND artist = ? AND album = ?";
     
-
-    // Variables declaration - do not modify                     
-    // End of variables declaration                   
+    try (Connection conn = connect();
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        
+        pstmt.setString(1, updatedComment);
+        pstmt.setString(2, title);
+        pstmt.setString(3, artist);
+        pstmt.setString(4, album);
+        
+        pstmt.executeUpdate();
+        
+    } catch (SQLException e) {
+        System.out.println(e.getMessage());
+    }
 }
 
+    public static void deleteSong(String title, String artist, String album) {
+        String sql = "DELETE FROM songs WHERE title = ? AND artist = ? AND album = ?";
+
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, title);
+            pstmt.setString(2, artist);
+            pstmt.setString(3, album);
+            pstmt.executeUpdate();
 
 
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+    
+    public static void insertSongWithQuery(String query) {
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute(query);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+    
+    
+    public static List<Object[]> getAllSongs() {
+        List<Object[]> songs = new ArrayList<>();
+        String sql = "SELECT * FROM songs";
+
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                Object[] song = {
+                    rs.getString("title"),
+                    rs.getString("artist"),
+                    rs.getString("album"),
+                    rs.getInt("year"),
+                    rs.getString("genre"),
+                    rs.getString("comment")
+                };
+                songs.add(song);
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return songs;
+    }
+    public static void createPlaylist(String playlistName) {
+        String sql = "INSERT INTO playlists(name) VALUES(?)";
+
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, playlistName);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+    public static List<Object[]> getSongsFromPlaylist(String playlistName) {
+        List<Object[]> songs = new ArrayList<>();
+        String sql = "SELECT s.title, s.artist, s.album, s.year, s.genre, s.comment " +
+                     "FROM songs s " +
+                     "JOIN playlist_songs ps ON s.id = ps.song_id " +
+                     "JOIN playlists p ON ps.playlist_id = p.id " +
+                     "WHERE p.name = ?";
+
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, playlistName);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                Object[] song = {
+                    rs.getString("title"),
+                    rs.getString("artist"),
+                    rs.getString("album"),
+                    rs.getInt("year"),
+                    rs.getString("genre"),
+                    rs.getString("comment")
+                };
+                songs.add(song);
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return songs;
+    }
+    
+     public static List<String> getAllPlaylists() {
+        List<String> playlists = new ArrayList<>();
+        String sql = "SELECT name FROM playlists";
+
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                playlists.add(rs.getString("name"));
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return playlists;
+    }
+    public static void addSongToPlaylist(String title, String artist, String album, String playlistName) {
+        String getSongIdSql = "SELECT id FROM songs WHERE title = ? AND artist = ? AND album = ?";
+        String getPlaylistIdSql = "SELECT id FROM playlists WHERE name = ?";
+        String insertPlaylistSongSql = "INSERT INTO playlist_songs(playlist_id, song_id) VALUES(?, ?)";
+
+        try (Connection conn = connect();
+             PreparedStatement getSongIdStmt = conn.prepareStatement(getSongIdSql);
+             PreparedStatement getPlaylistIdStmt = conn.prepareStatement(getPlaylistIdSql);
+             PreparedStatement insertPlaylistSongStmt = conn.prepareStatement(insertPlaylistSongSql)) {
+
+            // Get song ID
+            getSongIdStmt.setString(1, title);
+            getSongIdStmt.setString(2, artist);
+            getSongIdStmt.setString(3, album);
+            ResultSet songIdRs = getSongIdStmt.executeQuery();
+            int songId = -1;
+            if (songIdRs.next()) {
+                songId = songIdRs.getInt("id");
+            }
+
+            // Get playlist ID
+            getPlaylistIdStmt.setString(1, playlistName);
+            ResultSet playlistIdRs = getPlaylistIdStmt.executeQuery();
+            int playlistId = -1;
+            if (playlistIdRs.next()) {
+                playlistId = playlistIdRs.getInt("id");
+            }
+
+            // Insert into playlist_songs table
+            if (songId != -1 && playlistId != -1) {
+                insertPlaylistSongStmt.setInt(1, playlistId);
+                insertPlaylistSongStmt.setInt(2, songId);
+                insertPlaylistSongStmt.executeUpdate();
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+    
+     
+
+    public static void main(String[] args) {
+        //createNewDatabase();
+        //createTables();
+       
+    }
+}
