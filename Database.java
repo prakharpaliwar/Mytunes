@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Database {
-    private static final String URL = "jdbc:sqlite:test.db";
+    private static final String URL = "jdbc:sqlite:testy.db";
 
     public static Connection connect() {
         Connection conn = null;
@@ -52,6 +52,18 @@ public class Database {
                 + " year INTEGER,\n"
                 + " genre TEXT,\n"
                 + " comment TEXT\n"
+                + ");";
+        
+        String sqlPlaylists = "CREATE TABLE IF NOT EXISTS playlists (\n"
+                + " id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
+                + " name TEXT NOT NULL\n"
+                + ");";
+
+        String sqlPlaylistSongs = "CREATE TABLE IF NOT EXISTS playlist_songs (\n"
+                + " playlist_id INTEGER NOT NULL,\n"
+                + " song_id INTEGER NOT NULL,\n"
+                + " FOREIGN KEY (playlist_id) REFERENCES playlists(id),\n"
+                + " FOREIGN KEY (song_id) REFERENCES songs(id)\n"
                 + ");";
 
         try (Connection conn = connect();
@@ -98,7 +110,7 @@ public class Database {
             System.out.println(e.getMessage());
         }
     } 
-    public static void updateSong(int id, String title, String artist, String album, int year, String genre, String comment) {
+    /*public static void updateSong(int id, String title, String artist, String album, int year, String genre, String comment) {
         String sql = "UPDATE songs SET title = ? , "
                 + "artist = ? , "
                 + "album = ? , "
@@ -121,15 +133,36 @@ public class Database {
         } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
+    }*/
+    public static void updateSongComment(String title, String artist, String album, String updatedComment) {
+    String sql = "UPDATE songs SET comment = ? WHERE title = ? AND artist = ? AND album = ?";
+    
+    try (Connection conn = connect();
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        
+        pstmt.setString(1, updatedComment);
+        pstmt.setString(2, title);
+        pstmt.setString(3, artist);
+        pstmt.setString(4, album);
+        
+        pstmt.executeUpdate();
+        
+    } catch (SQLException e) {
+        System.out.println(e.getMessage());
     }
-    public static void deleteSong(int id) {
-        String sql = "DELETE FROM songs WHERE id = ?";
+}
+
+    public static void deleteSong(String title, String artist, String album) {
+        String sql = "DELETE FROM songs WHERE title = ? AND artist = ? AND album = ?";
 
         try (Connection conn = connect();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setInt(1, id);
+            pstmt.setString(1, title);
+            pstmt.setString(2, artist);
+            pstmt.setString(3, album);
             pstmt.executeUpdate();
+
 
         } catch (SQLException e) {
             System.out.println(e.getMessage());
@@ -156,7 +189,46 @@ public class Database {
 
             while (rs.next()) {
                 Object[] song = {
-                    rs.getInt("id"),
+                    rs.getString("title"),
+                    rs.getString("artist"),
+                    rs.getString("album"),
+                    rs.getInt("year"),
+                    rs.getString("genre"),
+                    rs.getString("comment")
+                };
+                songs.add(song);
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return songs;
+    }
+    public static void createPlaylist(String playlistName) {
+        String sql = "INSERT INTO playlists(name) VALUES(?)";
+
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, playlistName);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+    public static List<Object[]> getSongsFromPlaylist(String playlistName) {
+        List<Object[]> songs = new ArrayList<>();
+        String sql = "SELECT s.title, s.artist, s.album, s.year, s.genre, s.comment " +
+                     "FROM songs s " +
+                     "JOIN playlist_songs ps ON s.id = ps.song_id " +
+                     "JOIN playlists p ON ps.playlist_id = p.id " +
+                     "WHERE p.name = ?";
+
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, playlistName);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                Object[] song = {
                     rs.getString("title"),
                     rs.getString("artist"),
                     rs.getString("album"),
