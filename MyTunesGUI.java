@@ -80,6 +80,12 @@ public class MyTunesGUI extends javax.swing.JFrame {
     private JSlider volumeSlider;
     private Map<String, TableColumn> hiddenCols;
     private TableRowSorter<DefaultTableModel> sorter;
+    private JLabel leftTimerLabel;
+    private JLabel rightTimerLabel;
+    private JProgressBar progressBar;
+    private Timer songTimer;
+    private int songLengthInSeconds;
+    private int elapsedTimeInSeconds;
 
     
     // Columns to be toggled
@@ -436,6 +442,21 @@ public class MyTunesGUI extends javax.swing.JFrame {
             }
         });
         refreshTimer.start();
+        // Add Timers and Progress Bar
+        JPanel statusPanel = new JPanel(new BorderLayout());
+        leftTimerLabel = new JLabel("00:00:00");
+        rightTimerLabel = new JLabel("00:00:00");
+        progressBar = new JProgressBar(0, 100);
+        progressBar.setValue(0);
+        progressBar.setStringPainted(true);
+
+        JPanel timerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        timerPanel.add(leftTimerLabel);
+        timerPanel.add(progressBar);
+        timerPanel.add(rightTimerLabel);
+
+        statusPanel.add(timerPanel, BorderLayout.CENTER);
+        add(statusPanel, BorderLayout.NORTH);
         // Load column configuration on startup
         //loadColumnConfiguration();
 
