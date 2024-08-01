@@ -59,6 +59,7 @@ public class MyTunesGUI extends javax.swing.JFrame {
     private DefaultTreeModel playlistTreeModel;
     private JPopupMenu playlistPopupMenu;
     private JMenuItem openInNewWindowMenuItem;
+    private JMenuItem deletePlaylistMenuItem;
     private String currentPlaylist;
      
     /**
@@ -70,6 +71,8 @@ public class MyTunesGUI extends javax.swing.JFrame {
         setSize(800, 600);
         setLocationRelativeTo(null); 
         
+        
+         
         
         setLayout(new BorderLayout());
 
@@ -98,7 +101,6 @@ public class MyTunesGUI extends javax.swing.JFrame {
             if(selRow != -1) {
                 DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) selPath.getLastPathComponent();
                 if (selectedNode.toString().equals("Library")) {
-                    System.out.println("Library Node Selected");
                     // Handle library selection
                     currentPlaylist = null; // Reset current playlist
                     populateTableFromDatabase();
@@ -128,7 +130,6 @@ public class MyTunesGUI extends javax.swing.JFrame {
         playlistTree.addTreeSelectionListener(new TreeSelectionListener() {
             @Override
             public void valueChanged(TreeSelectionEvent e) {
-                System.out.println("Paliwar");
                 DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) playlistTree.getLastSelectedPathComponent();
                 if (selectedNode != null && selectedNode.isLeaf() && selectedNode != playlistRootNode) {
                     // Handle playlist selection
@@ -141,26 +142,19 @@ public class MyTunesGUI extends javax.swing.JFrame {
         
         JScrollPane playlistScrollPane = new JScrollPane(playlistTree);
         playlistScrollPane.setBorder(BorderFactory.createEmptyBorder());
-        //playlistScrollPane.setPreferredSize(new Dimension(getWidth()/8, getHeight()/2));
-        leftPanel.add(playlistScrollPane);
-        
-      leftPanel.addComponentListener(new ComponentAdapter() {
-        @Override
-        public void componentResized(ComponentEvent e) {
-            int height = leftPanel.getHeight();
-            int paneHeight = (height - 10) / 2; // Subtract total gap (10) from height
-            libraryScrollPane.setBounds(0, 0, leftPanel.getWidth(), paneHeight);
-            playlistScrollPane.setBounds(0, paneHeight + 5, leftPanel.getWidth(), paneHeight); // +5 for gap
-        }
-    });
+        leftPanel.add(playlistScrollPane, BorderLayout.CENTER);
+        // Resize listener to adjust component sizes
+        leftPanel.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                int height = leftPanel.getHeight();
+                int paneHeight = height / 22; 
 
-
-        
-        
-        
-        
-
-        
+                // Set bounds for the library and playlist scroll panes
+                libraryScrollPane.setBounds(0, 0, leftPanel.getWidth(), paneHeight);
+                playlistScrollPane.setBounds(0, paneHeight, leftPanel.getWidth(), height - paneHeight); // Fill remaining height
+            }
+        });
 
         // Set up the table
         String[] columns = {"Title", "Artist", "Album", "Year", "Genre", "Comment"};
@@ -236,7 +230,8 @@ public class MyTunesGUI extends javax.swing.JFrame {
         playlistPopupMenu = new JPopupMenu();
         openInNewWindowMenuItem = new JMenuItem("Open in New Window");
         playlistPopupMenu.add(openInNewWindowMenuItem);
-        
+        deletePlaylistMenuItem = new JMenuItem("Delete Playlist");
+        playlistPopupMenu.add(deletePlaylistMenuItem);
          // Set up the action listener to update the "Add to Playlist" sub-menu
         songTable.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
@@ -356,6 +351,8 @@ public class MyTunesGUI extends javax.swing.JFrame {
 
          // Add Action Listener for "Open in New Window" menu item
         openInNewWindowMenuItem.addActionListener(e -> openPlaylistInNewWindow());
+        deletePlaylistMenuItem.addActionListener(e -> deletePlaylist());
+
         // Similarly, add action listeners for other buttons and menu items
         // Populate table with data from the database
         populateTableFromDatabase();
@@ -398,6 +395,18 @@ public class MyTunesGUI extends javax.swing.JFrame {
             }
         }
     }
+    private void deletePlaylist() {
+    DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) playlistTree.getLastSelectedPathComponent();
+    if (selectedNode != null && selectedNode.isLeaf() && selectedNode != playlistRootNode) {
+        String playlistName = selectedNode.toString();
+        int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete the playlist \"" + playlistName + "\"?", "Delete Playlist", JOptionPane.YES_NO_OPTION);
+        if (confirm == JOptionPane.YES_OPTION) {
+            Database.deletePlaylist(playlistName);
+            populateDeletePlaylistsFromDatabase();
+        }
+    }
+}
+
     
     // Method to add the selected song to the chosen playlist
      private void openPlaylistInNewWindow() {
@@ -439,6 +448,17 @@ public class MyTunesGUI extends javax.swing.JFrame {
         }
         
     }
+    
+    private void populateDeletePlaylistsFromDatabase() {
+        playlistRootNode.removeAllChildren(); // Clear existing nodes
+        List<String> playlists = Database.getAllPlaylists();
+        for (String playlist : playlists) {
+            playlistRootNode.add(new DefaultMutableTreeNode(playlist));
+        }
+        playlistTreeModel.reload(); // Reload the tree model to refresh the view
+}
+    
+    
     
     private void populateTableFromPlaylist(String playlistName) {
         tableModel.setRowCount(0); // Clear existing data
@@ -487,6 +507,7 @@ public class MyTunesGUI extends javax.swing.JFrame {
             }
         }
     }
+    
     
      public static void insertSongDragnDrop(String title, String artist, String album, String year, String genre, String comment) {
         String sql = "INSERT INTO songs (title, artist, album, year, genre, comment) VALUES (?, ?, ?, ?, ?, ?)";
@@ -543,7 +564,7 @@ public class MyTunesGUI extends javax.swing.JFrame {
 
         pack();
     }// </editor-fold>                        
-
+    
     /**
      * @param args the command line arguments
      */
