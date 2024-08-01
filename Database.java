@@ -179,6 +179,23 @@ public class Database {
         }
         return songs;
     }
+    public static boolean songExists(String title, String artist, String album) {
+    String sql = "SELECT COUNT(*) FROM songs WHERE title = ? AND artist = ? AND album = ?";
+    try (Connection conn = connect();
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        pstmt.setString(1, title);
+        pstmt.setString(2, artist);
+        pstmt.setString(3, album);
+        ResultSet rs = pstmt.executeQuery();
+        if (rs.next()) {
+            return rs.getInt(1) > 0;
+        }
+    } catch (SQLException e) {
+        System.out.println(e.getMessage());
+    }
+    return false;
+}
+
     public static void createPlaylist(String playlistName) {
         String sql = "INSERT INTO playlists(name) VALUES(?)";
 
@@ -274,6 +291,38 @@ public class Database {
             System.out.println(e.getMessage());
         }
     }
+    
+    public static void deletePlaylist(String playlistName) {
+    String getPlaylistIdSql = "SELECT id FROM playlists WHERE name = ?";
+    String deletePlaylistSongsSql = "DELETE FROM playlist_songs WHERE playlist_id = ?";
+    String deletePlaylistSql = "DELETE FROM playlists WHERE id = ?";
+
+    try (Connection conn = connect();
+         PreparedStatement getPlaylistIdStmt = conn.prepareStatement(getPlaylistIdSql);
+         PreparedStatement deletePlaylistSongsStmt = conn.prepareStatement(deletePlaylistSongsSql);
+         PreparedStatement deletePlaylistStmt = conn.prepareStatement(deletePlaylistSql)) {
+
+        // Get playlist ID
+        getPlaylistIdStmt.setString(1, playlistName);
+        ResultSet playlistIdRs = getPlaylistIdStmt.executeQuery();
+        int playlistId = -1;
+        if (playlistIdRs.next()) {
+            playlistId = playlistIdRs.getInt("id");
+        }
+
+        // Delete from playlist_songs and playlists table
+        if (playlistId != -1) {
+            deletePlaylistSongsStmt.setInt(1, playlistId);
+            deletePlaylistSongsStmt.executeUpdate();
+
+            deletePlaylistStmt.setInt(1, playlistId);
+            deletePlaylistStmt.executeUpdate();
+        }
+    } catch (SQLException e) {
+        System.out.println(e.getMessage());
+    }
+}
+
     
      
 
