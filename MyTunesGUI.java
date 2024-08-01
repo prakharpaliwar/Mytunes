@@ -61,6 +61,7 @@ public class MyTunesGUI extends javax.swing.JFrame {
     private JMenuItem openInNewWindowMenuItem;
     private JMenuItem deletePlaylistMenuItem;
     private String currentPlaylist;
+    private JSlider volumeSlider;
      
     /**
      * Creates new form MyTunesGUI
@@ -181,6 +182,7 @@ public class MyTunesGUI extends javax.swing.JFrame {
         unpauseButton = new JButton("Unpause");
         nextButton = new JButton("Next");
         previousButton = new JButton("Previous");
+        volumeSlider = new JSlider(0, 100, 50);
 
         buttonPanel.add(playButton);
         buttonPanel.add(stopButton);
@@ -188,7 +190,8 @@ public class MyTunesGUI extends javax.swing.JFrame {
         buttonPanel.add(unpauseButton);
         buttonPanel.add(nextButton);
         buttonPanel.add(previousButton);
-
+        buttonPanel.add(new JLabel("Volume"));
+        buttonPanel.add(volumeSlider);
         add(buttonPanel, BorderLayout.SOUTH);
 
         // Set up the menu bar
@@ -232,6 +235,8 @@ public class MyTunesGUI extends javax.swing.JFrame {
         playlistPopupMenu.add(openInNewWindowMenuItem);
         deletePlaylistMenuItem = new JMenuItem("Delete Playlist");
         playlistPopupMenu.add(deletePlaylistMenuItem);
+        
+        
          // Set up the action listener to update the "Add to Playlist" sub-menu
         songTable.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
