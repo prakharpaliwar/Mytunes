@@ -17,14 +17,26 @@ import java.awt.event.ActionListener;
 import java.awt.dnd.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.sql.PreparedStatement;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.event.TreeExpansionEvent;
@@ -34,6 +46,9 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeSelectionModel;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
+import javax.swing.table.TableColumn;
+import javax.swing.table.TableColumnModel;
+import javax.swing.table.TableRowSorter;
 import javax.swing.tree.TreePath;
 /**
  *
@@ -42,7 +57,8 @@ import javax.swing.tree.TreePath;
 public class MyTunesGUI extends javax.swing.JFrame {
     
     private JTable songTable;
-    private DefaultTableModel tableModel;
+    private CustomTableModel tableModel;
+    //private DefaultTableModel tableModel;
     private JButton playButton, stopButton, pauseButton, unpauseButton, nextButton, previousButton;
     private JMenuBar menuBar;
     private JMenu fileMenu;
@@ -62,6 +78,16 @@ public class MyTunesGUI extends javax.swing.JFrame {
     private JMenuItem deletePlaylistMenuItem;
     private String currentPlaylist;
     private JSlider volumeSlider;
+    private Map<String, TableColumn> hiddenCols;
+    private TableRowSorter<DefaultTableModel> sorter;
+
+    
+    // Columns to be toggled
+    private JCheckBoxMenuItem albumMenuItem;
+    private JCheckBoxMenuItem artistMenuItem;
+    private JCheckBoxMenuItem yearMenuItem;
+    private JCheckBoxMenuItem genreMenuItem;
+    private JCheckBoxMenuItem commentMenuItem;
      
     /**
      * Creates new form MyTunesGUI
@@ -74,7 +100,7 @@ public class MyTunesGUI extends javax.swing.JFrame {
         
         
          
-        
+        hiddenCols = new HashMap<>();
         setLayout(new BorderLayout());
 
         // Create and add the left panel
@@ -158,18 +184,26 @@ public class MyTunesGUI extends javax.swing.JFrame {
         });
 
         // Set up the table
-        String[] columns = {"Title", "Artist", "Album", "Year", "Genre", "Comment"};
+        String[] columns = {"Title", "Artist", "Album", "Year", "Genre", "Comment","File"};
         //tableModel = new DefaultTableModel(columns, 0);
+        int[] hiddenColumns = {6}; 
+        tableModel = new CustomTableModel(new Object[0][columns.length], columns, hiddenColumns);
+        /*
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 // Make all cells editable except for the first four columns (Title, Artist, Album, Year)
                 return column == 5; // "Comment" column is editable
             }
-        };
+        };*/
         songTable = new JTable(tableModel);
         JScrollPane scrollPane = new JScrollPane(songTable);
         add(scrollPane, BorderLayout.CENTER);
+        
+        // Set up sorting(Bonus Marks)
+        sorter = new TableRowSorter<>(tableModel);
+        songTable.setRowSorter(sorter);
+        sorter.setSortKeys(Collections.singletonList(new RowSorter.SortKey(0, SortOrder.ASCENDING)));
         
         // Enable drag and drop on the table
         new DropTarget(songTable, new SongDropTargetListener());
@@ -193,7 +227,27 @@ public class MyTunesGUI extends javax.swing.JFrame {
         buttonPanel.add(new JLabel("Volume"));
         buttonPanel.add(volumeSlider);
         add(buttonPanel, BorderLayout.SOUTH);
+        
+        // Create header popup menu
+        JPopupMenu headerPopupMenu = new JPopupMenu();
+        albumMenuItem = new JCheckBoxMenuItem("Album", true);
+        artistMenuItem = new JCheckBoxMenuItem("Artist", true);
+        yearMenuItem = new JCheckBoxMenuItem("Year", true);
+        genreMenuItem = new JCheckBoxMenuItem("Genre", true);
+        commentMenuItem = new JCheckBoxMenuItem("Comment", true);
 
+        headerPopupMenu.add(albumMenuItem);
+        headerPopupMenu.add(artistMenuItem);
+        headerPopupMenu.add(yearMenuItem);
+        headerPopupMenu.add(genreMenuItem);
+        headerPopupMenu.add(commentMenuItem);
+        
+        albumMenuItem.addActionListener(e -> toggleColumnVisibility("Album", albumMenuItem.isSelected()));
+        artistMenuItem.addActionListener(e -> toggleColumnVisibility("Artist", artistMenuItem.isSelected()));
+        yearMenuItem.addActionListener(e -> toggleColumnVisibility("Year", yearMenuItem.isSelected()));
+        genreMenuItem.addActionListener(e -> toggleColumnVisibility("Genre", genreMenuItem.isSelected()));
+        commentMenuItem.addActionListener(e -> toggleColumnVisibility("Comment", commentMenuItem.isSelected()));
+        
         // Set up the menu bar
         menuBar = new JMenuBar();
         fileMenu = new JMenu("File");
@@ -254,6 +308,14 @@ public class MyTunesGUI extends javax.swing.JFrame {
                 // Code to play song
             }
         });
+    songTable.getTableHeader().addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    headerPopupMenu.show(e.getComponent(), e.getX(), e.getY());
+                }
+            }
+        });    
         
     // Add right-click listener to playlist tree
     playlistTree.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -374,9 +436,61 @@ public class MyTunesGUI extends javax.swing.JFrame {
             }
         });
         refreshTimer.start();
+        // Load column configuration on startup
+        //loadColumnConfiguration();
+
+        // Save column configuration on window close
+        /*
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                saveColumnConfiguration();
+            }
+        });*/
         setVisible(true);
     }
-        // Method to update the "Add to Playlist" sub-menu
+    private void saveColumnConfiguration() {
+        try (PrintWriter writer = new PrintWriter(new FileWriter("columnConfig.txt"))) {
+            for (Enumeration<TableColumn> e = songTable.getColumnModel().getColumns(); e.hasMoreElements();) {
+                TableColumn column = e.nextElement();
+                writer.println(column.getHeaderValue() + "," + (column.getModelIndex() - 1));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    private void loadColumnConfiguration() {
+        File file = new File("columnConfig.txt");
+        if (file.exists()) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.split(",");
+                    String columnName = parts[0];
+                    boolean isVisible = Boolean.parseBoolean(parts[1]);
+                    JCheckBoxMenuItem menuItem = getMenuItemByName(columnName);
+                    if (menuItem != null) {
+                        menuItem.setSelected(isVisible);
+                        toggleColumnVisibility(columnName, isVisible);
+                    }
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    private JCheckBoxMenuItem getMenuItemByName(String columnName) {
+        switch(columnName) {
+            case "Album": return albumMenuItem;
+            case "Artist": return artistMenuItem;
+            case "Year": return yearMenuItem;
+            case "Genre": return genreMenuItem;
+            case "Comment": return commentMenuItem;
+            default: return null;
+        }
+    }
+    // Method to update the "Add to Playlist" sub-menu
     private void updateAddToPlaylistMenu(JMenu addToPlaylistMenuItem) {
         addToPlaylistMenuItem.removeAll();
         List<String> playlists = Database.getAllPlaylists();
@@ -530,6 +644,52 @@ public class MyTunesGUI extends javax.swing.JFrame {
             System.out.println(e.getMessage());
         }
     }
+    /*private void toggleColumnVisibility(String columnName, boolean isVisible) {
+        TableColumnModel columnModel = songTable.getColumnModel();
+        int columnIndex = -1;
+        for (int i = 0; i < columnModel.getColumnCount(); i++) {
+            if (columnModel.getColumn(i).getHeaderValue().equals(columnName)) {
+                columnIndex = i;
+                break;
+            }
+        }
+
+        if (columnIndex != -1) {
+            if (isVisible) {
+                songTable.addColumn(columnModel.getColumn(columnIndex));
+            } else {
+                songTable.removeColumn(columnModel.getColumn(columnIndex));
+            }
+        }
+    } */
+    private void toggleColumnVisibility(String columnName, boolean isVisible) {
+        TableColumnModel columnModel = songTable.getColumnModel();
+        if (isVisible) {
+            TableColumn column = hiddenCols.remove(columnName);
+            if (column != null) {
+                columnModel.addColumn(column);
+                int columnCount = columnModel.getColumnCount();
+                columnModel.moveColumn(columnModel.getColumnCount() - 1, getColumnIndex(columnName));
+            }
+        } else {
+            int index = getColumnIndex(columnName);
+            if (index != -1) {
+                TableColumn column = columnModel.getColumn(index);
+                hiddenCols.put(columnName, column);
+                columnModel.removeColumn(column);
+            }
+        }
+        //saveColumnConfiguration();// Save the configuration whenever a column is toggled
+    }
+
+    private int getColumnIndex(String columnName) {
+        for (int i = 0; i < songTable.getColumnCount(); i++) {
+            if (songTable.getColumnName(i).equals(columnName)) {
+                return i;
+            }
+        }
+        return -1;
+    } 
 
     private int getLastInsertedId() {
         int lastId = -1;
