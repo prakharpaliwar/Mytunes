@@ -21,7 +21,7 @@ public class ID3TagReader {
     
     
     public static void main(String[] args) {
-        String directoryPath = "C:\\Users\\Robinhood\\Downloads\\heredity\\";
+        String directoryPath = "C:\\Library\\";
         File directory = new File(directoryPath);
         
         // Filter to list only MP3 files
