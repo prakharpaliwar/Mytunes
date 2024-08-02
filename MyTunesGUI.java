@@ -30,6 +30,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -51,6 +52,7 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeSelectionModel;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableRowSorter;
@@ -106,6 +108,10 @@ public class MyTunesGUI extends javax.swing.JFrame {
     private AdvancedPlayer player;
     private boolean isPaused;
     private CustomAudioDevice audioDevice;
+    private String currentFilePath;
+    private Thread playerThread;
+
+
 
 
 
@@ -415,6 +421,21 @@ public class MyTunesGUI extends javax.swing.JFrame {
                 pauseSong();
             }
         });
+        unpauseButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                unpauseSong();
+            }
+        });
+        stopButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                stopSong();
+            }
+        });
+        
+        
+        
         
     songTable.getTableHeader().addMouseListener(new MouseAdapter() {
             @Override
@@ -469,27 +490,43 @@ public class MyTunesGUI extends javax.swing.JFrame {
 });
 
     
+   // Code to add song through JFileChooser
     addMenuItem.addActionListener(new ActionListener() {
     @Override
     public void actionPerformed(ActionEvent e) {
-        // Example: Collect song details from user input (e.g., using a dialog)
-        // Collect song details from user input
-                String title = JOptionPane.showInputDialog("Enter song title:");
-                String artist = JOptionPane.showInputDialog("Enter artist name:");
-                String album = JOptionPane.showInputDialog("Enter album name:");
-                int year = Integer.parseInt(JOptionPane.showInputDialog("Enter year:"));
-                String genre = JOptionPane.showInputDialog("Enter genre:");
-                String comment = JOptionPane.showInputDialog("Enter comment:");
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileFilter(new FileNameExtensionFilter("MP3 Files", "mp3"));
 
+        int result = fileChooser.showOpenDialog(MyTunesGUI.this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File selectedFile = fileChooser.getSelectedFile();
+            try {
+                AudioFile audioFile = AudioFileIO.read(selectedFile);
+                Tag tag = audioFile.getTag();
 
-        Database.insertSong(title, artist, album, year, genre, comment);
+                // Read ID3 tags
+                String title = tag.getFirst(FieldKey.TITLE);
+                String artist = tag.getFirst(FieldKey.ARTIST);
+                String album = tag.getFirst(FieldKey.ALBUM);
+                String year = tag.getFirst(FieldKey.YEAR);
+                String genre = tag.getFirst(FieldKey.GENRE);
+                String comment = tag.getFirst(FieldKey.COMMENT);
 
-        // Update table model to reflect new data
-        //tableModel.addRow(new Object[]{title, artist, album, year, genre, comment});
-        populateTableFromDatabase();
-        
+                int yearInt = year != null ? Integer.parseInt(year) : 0;
+
+                // Insert the song into the database
+                Database.insertSong(title, artist, album, yearInt, genre, comment);
+
+                // Update the song table
+                tableModel.addRow(new Object[]{title, artist, album, yearInt, genre, comment});
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                JOptionPane.showMessageDialog(MyTunesGUI.this, "Error adding the selected song.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 });
+    
     deleteMenuItem.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -584,7 +621,32 @@ public class MyTunesGUI extends javax.swing.JFrame {
             System.out.println("Playing: " + title + " by " + artist + " from the album " + album);
             // Add your song playing logic here
             addToRecentPlayList(title, artist, album);
+            currentFilePath = getFilePathFromDatabase(title, artist, album);
+
+            // Stop any currently playing song
+            stopSong();
+
+            // Start a new thread to play the song
+            playerThread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        InputStream is = new FileInputStream(currentFilePath);
+                        audioDevice = new CustomAudioDevice();
+                        player = new AdvancedPlayer(is, audioDevice);
+                        player.play(pausedFrame, Integer.MAX_VALUE); // Resume from the paused frame
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            });
+            playerThread.start();
+            isPaused = false;
         }
+    }
+    private String getFilePathFromDatabase(String title, String artist, String album) {
+        // Implementing the logic to retrieve the file path from the database based on title, artist, and album
+        return "C://Library//" + title + ".mp3";
     }
     private void playNextSong() {
         int selectedRow = songTable.getSelectedRow();
@@ -624,7 +686,7 @@ public class MyTunesGUI extends javax.swing.JFrame {
             playMp3File(file);
         }
     } 
-    private void playMp3File(File file) {
+    /*private void playMp3File(File file) {
         stopSong(); // Stop any currently playing song
 
         try {
@@ -641,6 +703,29 @@ public class MyTunesGUI extends javax.swing.JFrame {
         } catch (FileNotFoundException | JavaLayerException e) {
             e.printStackTrace();
         }
+    } */
+    private void playMp3File(File file) {
+        currentFilePath = file.getAbsolutePath();
+
+        // Stop any currently playing song
+        stopSong();
+
+        // Start a new thread to play the song
+        playerThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    InputStream is = new FileInputStream(currentFilePath);
+                    audioDevice = new CustomAudioDevice();
+                    player = new AdvancedPlayer(is, audioDevice);
+                    player.play(pausedFrame, Integer.MAX_VALUE); // Resume from the paused frame
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+        playerThread.start();
+        isPaused = false;
     } 
     private void stopSong() {
         if (player != null) {
@@ -661,6 +746,28 @@ public class MyTunesGUI extends javax.swing.JFrame {
             }
         }
     }
+    private void unpauseSong() {
+        if (isPaused && currentFilePath != null) {
+            // Start a new thread to resume the song
+            playerThread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        InputStream is = new FileInputStream(currentFilePath);
+                        audioDevice = new CustomAudioDevice();
+                        player = new AdvancedPlayer(is, audioDevice);
+                        player.play(pausedFrame, Integer.MAX_VALUE); // Resume from the paused frame
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            });
+            playerThread.start();
+            isPaused = false;
+        }
+    }
+    
+    
     
     private void updatePlayRecentMenu() {
         playRecentMenuItem.removeAll();
