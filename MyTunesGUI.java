@@ -17,6 +17,8 @@ import java.awt.event.ActionListener;
 import java.awt.dnd.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
@@ -36,6 +38,7 @@ import java.sql.PreparedStatement;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Map;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
@@ -61,10 +64,12 @@ public class MyTunesGUI extends javax.swing.JFrame {
     //private DefaultTableModel tableModel;
     private JButton playButton, stopButton, pauseButton, unpauseButton, nextButton, previousButton;
     private JMenuBar menuBar;
-    private JMenu fileMenu;
-    private JMenuItem openMenuItem, exitMenuItem, addMenuItem, deleteMenuItem, createPlaylistMenuItem;
+    private JMenu fileMenu,controlsMenu;
+    private JMenuItem openMenuItem, exitMenuItem, addMenuItem, deleteMenuItem, createPlaylistMenuItem,playMenuItem;
     private JPopupMenu popupMenu;
-    private JMenuItem popupAdd, popupDelete,addToPlaylistMenuItem;;
+    private JMenuItem popupAdd, popupDelete,addToPlaylistMenuItem,nextMenuItem,previousMenuItem,playRecentMenuItem;;
+    private JMenuItem goToCurrentSongMenuItem;
+    private String currentSong;
     private JPanel leftPanel;
     private JTree libraryTree;
     private JTree playlistTree;
@@ -86,6 +91,9 @@ public class MyTunesGUI extends javax.swing.JFrame {
     private Timer songTimer;
     private int songLengthInSeconds;
     private int elapsedTimeInSeconds;
+    private LinkedList<String> recentPlayList = new LinkedList<>();
+    private boolean shuffleEnabled = false;
+    private boolean repeatEnabled = false;
 
     
     // Columns to be toggled
@@ -207,10 +215,11 @@ public class MyTunesGUI extends javax.swing.JFrame {
         add(scrollPane, BorderLayout.CENTER);
         
         // Set up sorting(Bonus Marks)
+        /*
         sorter = new TableRowSorter<>(tableModel);
         songTable.setRowSorter(sorter);
         sorter.setSortKeys(Collections.singletonList(new RowSorter.SortKey(0, SortOrder.ASCENDING)));
-        
+        */
         // Enable drag and drop on the table
         new DropTarget(songTable, new SongDropTargetListener());
 
@@ -223,6 +232,10 @@ public class MyTunesGUI extends javax.swing.JFrame {
         nextButton = new JButton("Next");
         previousButton = new JButton("Previous");
         volumeSlider = new JSlider(0, 100, 50);
+        volumeSlider.setMajorTickSpacing(10);
+        volumeSlider.setPaintTicks(true);
+        volumeSlider.setPaintLabels(true);
+        //add(volumeSlider, BorderLayout.NORTH);
 
         buttonPanel.add(playButton);
         buttonPanel.add(stopButton);
@@ -272,6 +285,65 @@ public class MyTunesGUI extends javax.swing.JFrame {
         fileMenu.add(exitMenuItem);
 
         menuBar.add(fileMenu);
+        // Add the Controls menu
+        controlsMenu = new JMenu("Controls");
+        playMenuItem = new JMenuItem("Play");
+        playMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0));
+        playMenuItem.addActionListener(e -> playSong());
+        
+          // Add the "Next" command
+        nextMenuItem = new JMenuItem("Next");
+        nextMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, InputEvent.CTRL_DOWN_MASK));
+        nextMenuItem.addActionListener(e -> playNextSong());
+        
+        
+        
+        // Add the "Previous" command
+        previousMenuItem = new JMenuItem("Previous");
+        previousMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, InputEvent.CTRL_DOWN_MASK));
+        previousMenuItem.addActionListener(e -> playPreviousSong());
+        
+        // Add the "Play Recent" command
+        playRecentMenuItem = new JMenu("Play Recent");
+        controlsMenu.add(playRecentMenuItem);
+        
+        // Add the "Go to Current Song" command
+        goToCurrentSongMenuItem = new JMenuItem("Go to Current Song");
+        goToCurrentSongMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, InputEvent.CTRL_DOWN_MASK));
+        goToCurrentSongMenuItem.addActionListener(e -> goToCurrentSong());
+        
+        //Increase Volume
+        JMenuItem increaseVolumeMenuItem = new JMenuItem("Increase Volume");
+        increaseVolumeMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I, KeyEvent.CTRL_DOWN_MASK));
+        increaseVolumeMenuItem.addActionListener(e -> increaseVolume());
+        controlsMenu.add(increaseVolumeMenuItem);
+        
+        //Decrease Volume
+        JMenuItem decreaseVolumeMenuItem = new JMenuItem("Decrease Volume");
+        decreaseVolumeMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, KeyEvent.CTRL_DOWN_MASK));
+        decreaseVolumeMenuItem.addActionListener(e -> decreaseVolume());
+        
+        //Shuffle Box
+        JCheckBoxMenuItem shuffleMenuItem = new JCheckBoxMenuItem("Shuffle");
+        shuffleMenuItem.addActionListener(e -> toggleShuffle(shuffleMenuItem.isSelected()));
+        
+        JCheckBoxMenuItem repeatMenuItem = new JCheckBoxMenuItem("Repeat");
+        repeatMenuItem.addActionListener(e -> toggleRepeat(repeatMenuItem.isSelected()));
+        
+        controlsMenu.add(repeatMenuItem);
+        controlsMenu.add(shuffleMenuItem);
+        controlsMenu.add(playMenuItem);
+        controlsMenu.add(nextMenuItem);
+        controlsMenu.add(previousMenuItem);
+        controlsMenu.add(goToCurrentSongMenuItem);
+        controlsMenu.add(decreaseVolumeMenuItem);
+
+        // Add other menu items to Controls menu as we implement them
+
+        menuBar.add(controlsMenu);
+        // Add a separator
+        controlsMenu.addSeparator();
+        controlsMenu.addSeparator();
         setJMenuBar(menuBar);
 
         // Set up the popup menu
@@ -470,6 +542,98 @@ public class MyTunesGUI extends javax.swing.JFrame {
         });*/
         setVisible(true);
     }
+    private void playSong() {
+        int selectedRow = songTable.getSelectedRow();
+        if (selectedRow == -1 && tableModel.getRowCount() > 0) {
+            selectedRow = 0; // Play the first song if none is selected
+        }
+        if (selectedRow != -1) {
+            String title = (String) tableModel.getValueAt(selectedRow, 0);
+            String artist = (String) tableModel.getValueAt(selectedRow, 1);
+            String album = (String) tableModel.getValueAt(selectedRow, 2);
+            System.out.println("Playing: " + title + " by " + artist + " from the album " + album);
+            // Add your song playing logic here
+            addToRecentPlayList(title, artist, album);
+        }
+    }
+    private void playNextSong() {
+        int selectedRow = songTable.getSelectedRow();
+        if (selectedRow != -1 && selectedRow < tableModel.getRowCount() - 1) {
+            selectedRow++;
+        } else {
+            selectedRow = 0;
+        }
+        songTable.setRowSelectionInterval(selectedRow, selectedRow);
+        playSong();
+    }
+    private void playPreviousSong() {
+        int selectedRow = songTable.getSelectedRow();
+        if (selectedRow > 0) {
+            selectedRow--;
+        } else {
+            selectedRow = tableModel.getRowCount() - 1;
+        }
+        songTable.setRowSelectionInterval(selectedRow, selectedRow);
+        playSong();
+    }
+     private void addToRecentPlayList(String title, String artist, String album) {
+        String songInfo = title + " - " + artist + " - " + album;
+        recentPlayList.remove(songInfo);
+        recentPlayList.addFirst(songInfo);
+        if (recentPlayList.size() > 10) {
+            recentPlayList.removeLast();
+        }
+        updatePlayRecentMenu();
+    }
+    private void updatePlayRecentMenu() {
+        playRecentMenuItem.removeAll();
+        for (String songInfo : recentPlayList) {
+            JMenuItem recentItem = new JMenuItem(songInfo);
+            recentItem.addActionListener(e -> playRecentSong(songInfo));
+            playRecentMenuItem.add(recentItem);
+        }
+    }
+    private void playRecentSong(String songInfo) {
+        for (int i = 0; i < tableModel.getRowCount(); i++) {
+            String title = (String) tableModel.getValueAt(i, 0);
+            String artist = (String) tableModel.getValueAt(i, 1);
+            String album = (String) tableModel.getValueAt(i, 2);
+            if ((title + " - " + artist + " - " + album).equals(songInfo)) {
+                songTable.setRowSelectionInterval(i, i);
+                playSong();
+                break;
+            }
+        }
+    }
+    private void goToCurrentSong() {
+        if (currentSong != null) {
+            for (int i = 0; i < tableModel.getRowCount(); i++) {
+                String title = (String) tableModel.getValueAt(i, 0);
+                String artist = (String) tableModel.getValueAt(i, 1);
+                String album = (String) tableModel.getValueAt(i, 2);
+                if ((title + " - " + artist + " - " + album).equals(currentSong)) {
+                    songTable.setRowSelectionInterval(i, i);
+                    songTable.scrollRectToVisible(new Rectangle(songTable.getCellRect(i, 0, true)));
+                    break;
+                }
+            }
+        }
+    }
+    private void increaseVolume() {
+        int volume = volumeSlider.getValue();
+        volume = Math.min(volume + 5, 100);
+        volumeSlider.setValue(volume);
+        System.out.println("Volume increased to " + volume + "%");
+    }
+
+    private void decreaseVolume() {
+        int volume = volumeSlider.getValue();
+        volume = Math.max(volume - 5, 0);
+        volumeSlider.setValue(volume);
+        System.out.println("Volume decreased to " + volume + "%");
+    }
+
+    
     private void saveColumnConfiguration() {
         try (PrintWriter writer = new PrintWriter(new FileWriter("columnConfig.txt"))) {
             for (Enumeration<TableColumn> e = songTable.getColumnModel().getColumns(); e.hasMoreElements();) {
@@ -701,6 +865,16 @@ public class MyTunesGUI extends javax.swing.JFrame {
             }
         }
         //saveColumnConfiguration();// Save the configuration whenever a column is toggled
+    }
+    private void toggleShuffle(boolean enabled) {
+        shuffleEnabled = enabled;
+        System.out.println("Shuffle " + (enabled ? "enabled" : "disabled"));
+    // Add shuffle logic here
+    }
+    private void toggleRepeat(boolean enabled) {
+        repeatEnabled = enabled;
+        System.out.println("Repeat " + (enabled ? "enabled" : "disabled"));
+    // Add repeat logic here
     }
 
     private int getColumnIndex(String columnName) {
