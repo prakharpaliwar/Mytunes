@@ -25,6 +25,8 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -53,6 +55,12 @@ import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableRowSorter;
 import javax.swing.tree.TreePath;
+import javazoom.jl.player.advanced.AdvancedPlayer;
+import javazoom.jl.decoder.JavaLayerException;
+import javazoom.jl.player.AudioDevice;
+import javazoom.jl.player.JavaSoundAudioDevice;
+
+
 /**
  *
  * @author Robinhood
@@ -94,6 +102,14 @@ public class MyTunesGUI extends javax.swing.JFrame {
     private LinkedList<String> recentPlayList = new LinkedList<>();
     private boolean shuffleEnabled = false;
     private boolean repeatEnabled = false;
+    private File currentFile;
+    private AdvancedPlayer player;
+    private boolean isPaused;
+    private CustomAudioDevice audioDevice;
+
+
+
+
 
     
     // Columns to be toggled
@@ -102,6 +118,8 @@ public class MyTunesGUI extends javax.swing.JFrame {
     private JCheckBoxMenuItem yearMenuItem;
     private JCheckBoxMenuItem genreMenuItem;
     private JCheckBoxMenuItem commentMenuItem;
+    private int pausedFrame = 0;
+
      
     /**
      * Creates new form MyTunesGUI
@@ -154,7 +172,7 @@ public class MyTunesGUI extends javax.swing.JFrame {
       
         JScrollPane libraryScrollPane = new JScrollPane(libraryTree);
         libraryScrollPane.setBorder(BorderFactory.createEmptyBorder());
-        //libraryScrollPane.setPreferredSize(new Dimension(getWidth() / 8, getHeight() / 2));
+        libraryScrollPane.setPreferredSize(new Dimension(getWidth() / 8, getHeight() / 2));
         leftPanel.add(libraryScrollPane);
 
         // Create the "Playlist" tree
@@ -183,7 +201,9 @@ public class MyTunesGUI extends javax.swing.JFrame {
         
         JScrollPane playlistScrollPane = new JScrollPane(playlistTree);
         playlistScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        playlistScrollPane.setPreferredSize(new Dimension(getWidth() / 8, getHeight() / 2));
         leftPanel.add(playlistScrollPane, BorderLayout.CENTER);
+      
         // Resize listener to adjust component sizes
         leftPanel.addComponentListener(new ComponentAdapter() {
             @Override
@@ -291,6 +311,9 @@ public class MyTunesGUI extends javax.swing.JFrame {
         playMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0));
         playMenuItem.addActionListener(e -> playSong());
         
+         // Action listeners for file menu
+        openMenuItem.addActionListener(e -> openFile());
+        
           // Add the "Next" command
         nextMenuItem = new JMenuItem("Next");
         nextMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, InputEvent.CTRL_DOWN_MASK));
@@ -386,6 +409,13 @@ public class MyTunesGUI extends javax.swing.JFrame {
                 // Code to play song
             }
         });
+        pauseButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                pauseSong();
+            }
+        });
+        
     songTable.getTableHeader().addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -585,6 +615,53 @@ public class MyTunesGUI extends javax.swing.JFrame {
         }
         updatePlayRecentMenu();
     }
+     private void openFile() {
+        JFileChooser fileChooser = new JFileChooser();
+        int result = fileChooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File file = fileChooser.getSelectedFile();
+            currentFile = file;
+            playMp3File(file);
+        }
+    } 
+    private void playMp3File(File file) {
+        stopSong(); // Stop any currently playing song
+
+        try {
+            FileInputStream fis = new FileInputStream(file);
+            player = new AdvancedPlayer(fis);
+            isPaused = false;
+            new Thread(() -> {
+                try {
+                    player.play();
+                } catch (JavaLayerException e) {
+                    e.printStackTrace();
+                }
+            }).start();
+        } catch (FileNotFoundException | JavaLayerException e) {
+            e.printStackTrace();
+        }
+    } 
+    private void stopSong() {
+        if (player != null) {
+            player.close();
+            player = null;
+            isPaused = false;
+        }
+    }
+    private void pauseSong() {
+        if (player != null && !isPaused) {
+            try {
+                pausedFrame = audioDevice.getPosition();
+                player.close();
+                isPaused = true;
+                System.out.println("Paused at frame: " + pausedFrame);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    
     private void updatePlayRecentMenu() {
         playRecentMenuItem.removeAll();
         for (String songInfo : recentPlayList) {
