@@ -61,7 +61,10 @@ import javazoom.jl.player.advanced.AdvancedPlayer;
 import javazoom.jl.decoder.JavaLayerException;
 import javazoom.jl.player.AudioDevice;
 import javazoom.jl.player.JavaSoundAudioDevice;
-
+import java.util.Timer;
+import java.util.TimerTask;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 
 /**
  *
@@ -110,6 +113,8 @@ public class MyTunesGUI extends javax.swing.JFrame {
     private CustomAudioDevice audioDevice;
     private String currentFilePath;
     private Thread playerThread;
+    private Timer highlightTimer;
+    private int highlightedRow = -1;
 
 
 
@@ -241,14 +246,25 @@ public class MyTunesGUI extends javax.swing.JFrame {
         add(scrollPane, BorderLayout.CENTER);
         
         // Set up sorting(Bonus Marks)
-        /*
         sorter = new TableRowSorter<>(tableModel);
         songTable.setRowSorter(sorter);
         sorter.setSortKeys(Collections.singletonList(new RowSorter.SortKey(0, SortOrder.ASCENDING)));
-        */
+        
         // Enable drag and drop on the table
         new DropTarget(songTable, new SongDropTargetListener());
-
+        
+         // Add selection listener
+        songTable.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(ListSelectionEvent e) {
+                if (!e.getValueIsAdjusting()) {
+                    int selectedRow = songTable.getSelectedRow();
+                    if (selectedRow != -1) {
+                        highlightRow(selectedRow);
+                    }
+                }
+            }
+        });
         // Set up the buttons
         JPanel buttonPanel = new JPanel();
         playButton = new JButton("Play");
@@ -319,6 +335,8 @@ public class MyTunesGUI extends javax.swing.JFrame {
         
          // Action listeners for file menu
         openMenuItem.addActionListener(e -> openFile());
+         // Exit menu item action listener
+        exitMenuItem.addActionListener(e -> dispose());
         
           // Add the "Next" command
         nextMenuItem = new JMenuItem("Next");
@@ -510,16 +528,17 @@ public class MyTunesGUI extends javax.swing.JFrame {
         }
     }
 });
-    popupDelete.addActionListener(new ActionListener() {
+   popupDelete.addActionListener(new ActionListener() {
     @Override
     public void actionPerformed(ActionEvent e) {
-        int selectedRow = songTable.getSelectedRow();
-        if (selectedRow != -1) {
-            String title = (String) tableModel.getValueAt(selectedRow, 0);
-            String artist = (String) tableModel.getValueAt(selectedRow, 1);
-            String album = (String) tableModel.getValueAt(selectedRow, 2);
+        int viewRow = songTable.getSelectedRow();
+        if (viewRow != -1) {
+            int modelRow = songTable.convertRowIndexToModel(viewRow); // Convert view index to model index
+            String title = (String) tableModel.getValueAt(modelRow, 0);
+            String artist = (String) tableModel.getValueAt(modelRow, 1);
+            String album = (String) tableModel.getValueAt(modelRow, 2);
             Database.deleteSong(title, artist, album);
-            tableModel.removeRow(selectedRow);
+            tableModel.removeRow(modelRow);
         } else {
             JOptionPane.showMessageDialog(null, "Please select a song to delete.");
         }
@@ -565,22 +584,23 @@ public class MyTunesGUI extends javax.swing.JFrame {
 });
     
     deleteMenuItem.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                int selectedRow = songTable.getSelectedRow();
-                if (selectedRow != -1) {
-                    String title = (String) tableModel.getValueAt(selectedRow, 0);
-                    String artist = (String) tableModel.getValueAt(selectedRow, 1);
-                    String album = (String) tableModel.getValueAt(selectedRow, 2);
-                    Database.deleteSong(title, artist, album);
-                    tableModel.removeRow(selectedRow);
-                } else {
-                    JOptionPane.showMessageDialog(null, "Please select a song to delete.");
-                }
-            }
-        });
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        int viewRow = songTable.getSelectedRow();
+        if (viewRow != -1) {
+            int modelRow = songTable.convertRowIndexToModel(viewRow);
+            String title = (String) tableModel.getValueAt(modelRow, 0);
+            String artist = (String) tableModel.getValueAt(modelRow, 1);
+            String album = (String) tableModel.getValueAt(modelRow, 2);
+            Database.deleteSong(title, artist, album);
+            tableModel.removeRow(modelRow);
+        } else {
+            JOptionPane.showMessageDialog(null, "Please select a song to delete.");
+        }
+    }
+    });
      // Add a TableModelListener to detect changes in the table (for Comment updates)
-        tableModel.addTableModelListener(new TableModelListener() {
+    tableModel.addTableModelListener(new TableModelListener() {
             @Override
             public void tableChanged(TableModelEvent e) {
                 if (e.getType() == TableModelEvent.UPDATE) {
@@ -610,14 +630,14 @@ public class MyTunesGUI extends javax.swing.JFrame {
         populatePlaylistsFromDatabase();
         
         // Set up a timer to refresh the table every 5 seconds
-        Timer refreshTimer = new Timer(5000, e -> {
+        /*Timer refreshTimer = new Timer(5000, e -> {
             if (currentPlaylist == null) {
                 populateTableFromDatabase();
             } else {
                 populateTableFromPlaylist(currentPlaylist);
             }
         });
-        refreshTimer.start();
+        refreshTimer.start();*/
         // Add Timers and Progress Bar
         JPanel statusPanel = new JPanel(new BorderLayout());
         leftTimerLabel = new JLabel("00:00:00");
@@ -1100,6 +1120,21 @@ public class MyTunesGUI extends javax.swing.JFrame {
             System.out.println(e.getMessage());
         }
         return lastId;
+    }
+    private void highlightRow(int row) {
+        songTable.putClientProperty("highlightedRow", row);
+        // Cancel any existing timer task
+        if (highlightTimer != null) {
+            highlightTimer.cancel(); // Cancel the previous timer
+        }
+        // Create and schedule a new timer task for 20 seconds
+        highlightTimer = new java.util.Timer(); // Explicitly use java.util.Timer
+        highlightTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                SwingUtilities.invokeLater(() -> songTable.putClientProperty("highlightedRow", null));
+            }
+        }, 20000); // 20 seconds
     }
 
     /**
