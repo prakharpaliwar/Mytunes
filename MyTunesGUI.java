@@ -12,6 +12,8 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.dnd.*;
@@ -38,6 +40,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.sql.PreparedStatement;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -101,9 +104,11 @@ public class MyTunesGUI extends javax.swing.JFrame {
     private JLabel leftTimerLabel;
     private JLabel rightTimerLabel;
     private JProgressBar progressBar;
-    private Timer songTimer;
+    private javax.swing.Timer songTimer;
     private int songLengthInSeconds;
     private int elapsedTimeInSeconds;
+    private int elapsedTime = 0; // Elapsed time in seconds
+    private int songDuration = 300; // Duration of the song in seconds (e.g., 5 minutes)
     private LinkedList<String> recentPlayList = new LinkedList<>();
     private boolean shuffleEnabled = false;
     private boolean repeatEnabled = false;
@@ -246,12 +251,44 @@ public class MyTunesGUI extends javax.swing.JFrame {
         add(scrollPane, BorderLayout.CENTER);
         
         // Set up sorting(Bonus Marks)
+        /*
         sorter = new TableRowSorter<>(tableModel);
         songTable.setRowSorter(sorter);
-        sorter.setSortKeys(Collections.singletonList(new RowSorter.SortKey(0, SortOrder.ASCENDING)));
+        sorter.setSortKeys(Collections.singletonList(new RowSorter.SortKey(0, SortOrder.ASCENDING)));*/
         
         // Enable drag and drop on the table
         new DropTarget(songTable, new SongDropTargetListener());
+        //enableLibraryTableDragAndDrop();
+        songTable.setDragEnabled(true);
+        songTable.setTransferHandler(new TransferHandler() {
+        @Override
+        protected Transferable createTransferable(JComponent c) {
+            int[] selectedRows = songTable.getSelectedRows();
+
+            List<String> selectedSongs = new ArrayList<>();
+            String songDetails="";
+            for (int row : selectedRows) {
+                String title = ((String) tableModel.getValueAt(row, 0)).trim();
+                String artist = ((String) tableModel.getValueAt(row, 1)).trim();
+                String album = ((String) tableModel.getValueAt(row, 2)).trim();
+                int year=(int) tableModel.getValueAt(row, 3);
+                String yearString = String.valueOf(year).trim(); // Convert Integer to String
+                String genre=((String) tableModel.getValueAt(row, 4)).trim();
+                String comment=((String)tableModel.getValueAt(row, 5)).trim();
+                songDetails=title + "-" + artist + "-" + album + "-"+yearString+"-"+genre +"-"+comment;
+            }
+            if (!songDetails.isEmpty()) {
+                selectedSongs.add(songDetails);
+            }
+            return new StringSelection(String.join("\n", selectedSongs));
+    }
+
+    @Override
+    public int getSourceActions(JComponent c) {
+        //return MOVE;
+        return COPY;
+    }
+});
         
          // Add selection listener
         songTable.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
@@ -273,7 +310,7 @@ public class MyTunesGUI extends javax.swing.JFrame {
         unpauseButton = new JButton("Unpause");
         nextButton = new JButton("Next");
         previousButton = new JButton("Previous");
-        volumeSlider = new JSlider(0, 100, 50);
+        volumeSlider = new JSlider(0, 100, 100);
         volumeSlider.setMajorTickSpacing(10);
         volumeSlider.setPaintTicks(true);
         volumeSlider.setPaintLabels(true);
@@ -342,6 +379,24 @@ public class MyTunesGUI extends javax.swing.JFrame {
         nextMenuItem = new JMenuItem("Next");
         nextMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, InputEvent.CTRL_DOWN_MASK));
         nextMenuItem.addActionListener(e -> playNextSong());
+        
+        volumeSlider.addChangeListener(e -> {
+            int volume = volumeSlider.getValue();
+            if (volume == 0) {
+                // Mute
+                System.out.println("Volume is muted");
+                stopSong();
+                // You can add your mute logic here
+            } else if (volume == 100) {
+                // Maximum volume
+                System.out.println("Volume is at maximum");
+                // You can add your max volume logic here
+                playSong();
+            } else {
+                System.out.println("Volume set to " + volume + "%");
+            }
+        });
+
         
         
         
@@ -699,8 +754,49 @@ public class MyTunesGUI extends javax.swing.JFrame {
             });
             playerThread.start();
             isPaused = false;
+            // Assume duration is set based on the song
+            int duration = 300; // Example duration in seconds
+            startSongTimers(duration);
         }
     }
+    private void startSongTimers(int duration) {
+        songDuration = duration;
+        elapsedTime = 0; // Reset elapsed time
+
+        // Timer to update every second (1000 ms)
+        songTimer = new javax.swing.Timer(1000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                updateTimersAndProgressBar();
+            }
+        });
+        songTimer.start();
+    }
+    private void updateTimersAndProgressBar() {
+        // Update elapsed time
+        elapsedTime++;
+        if (elapsedTime > songDuration) {
+            elapsedTime = songDuration; // Ensure we don't exceed the song duration
+            songTimer.stop(); // Stop the timer when the song is done
+        }
+
+        int remainingTime = songDuration - elapsedTime;
+
+        // Update the timer labels
+        leftTimerLabel.setText(formatTime(elapsedTime));
+        rightTimerLabel.setText(formatTime(remainingTime));
+
+        // Update the progress bar
+        int progress = (int) ((elapsedTime / (double) songDuration) * 100);
+        progressBar.setValue(progress);
+    }
+    private String formatTime(int seconds) {
+        int hrs = seconds / 3600;
+        int mins = (seconds % 3600) / 60;
+        int secs = seconds % 60;
+        return String.format("%02d:%02d:%02d", hrs, mins, secs);
+    }
+    
     
     private void playNextSong() {
         int selectedRow = songTable.getSelectedRow();
@@ -992,6 +1088,28 @@ public class MyTunesGUI extends javax.swing.JFrame {
             tableModel.addRow(song);
         }
     }
+    
+    private void enableLibraryTableDragAndDrop() {
+        songTable.setDragEnabled(true);
+        songTable.setTransferHandler(new TransferHandler() {
+        @Override
+        protected Transferable createTransferable(JComponent c) {
+            int selectedRow = songTable.getSelectedRow();
+            if (selectedRow >= 0) {
+                String title = songTable.getValueAt(selectedRow, 0).toString(); 
+                String artist = songTable.getValueAt(selectedRow, 1).toString(); 
+                String album = songTable.getValueAt(selectedRow, 2).toString(); 
+                return new StringSelection(title + "|" + artist + "|" + album);
+            }
+            return null;
+        }
+
+        @Override
+        public int getSourceActions(JComponent c) {
+            return COPY_OR_MOVE;
+        }
+    });
+}
 
     private class SongDropTargetListener extends DropTargetAdapter {
         @Override
