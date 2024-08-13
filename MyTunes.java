@@ -13,11 +13,12 @@ import javax.swing.SwingUtilities;
 public class MyTunes {
 
     public static void main(String[] args) {
-        System.out.println("Hello World!");
+        //System.out.println("Hello World!");
         // Run the GUI in the Event Dispatch Thread for thread safety
         // Initialize the database and create tables if they do not exist
         //Database.createNewDatabase();
         //Database.createTables();
+        //ID3TagReader.main(args);
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
