@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Database {
-    private static final String URL = "jdbc:sqlite:testm.db";
+    private static final String URL = "jdbc:sqlite:testtune.db";
 
     public static Connection connect() {
         Connection conn = null;
@@ -290,6 +290,10 @@ public class Database {
         } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
+    }
+    public static String getFilePathFromDatabase(String title, String artist, String album) {
+        // Implementing the logic to retrieve the file path from the database based on title, artist, and album
+        return "C://Library//" + title + ".mp3";
     }
     
     public static void deletePlaylist(String playlistName) {
